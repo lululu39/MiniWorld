@@ -15,7 +15,7 @@ VAE_CKPT="${VAE_CKPT:?Set VAE_CKPT to Wan2.2_VAE.pth}"
 SAMPLE_DIR="${SAMPLE_DIR:-${REPO_DIR}/samples/re10k_${MODEL}}"
 GPU="${GPU:-0}"
 
-CUDA_VISIBLE_DEVICES="${GPU}" python -m miniworld.sample \
+CUDA_VISIBLE_DEVICES="${GPU}" uv run --no-sync python -m miniworld.sample \
   --dataset re10k \
   --data_root "${DATA_ROOT}" \
   --pose_dir "${POSE_DIR}" \

@@ -222,7 +222,7 @@ class Attention(nn.Module):
             k = torch.cat([k_past.to(dtype=k.dtype, device=k.device), k], dim=-2)
             v = torch.cat([v_past.to(dtype=v.dtype, device=v.device), v], dim=-2)
 
-        if attn_mask is None and past_kv is None:
+        if attn_mask is None and past_kv is None and x.is_cuda:
             # flash-attn fast path expects (B, N, num_heads, head_dim)
             q = q.transpose(1, 2).to(torch.bfloat16)
             k = k.transpose(1, 2).to(torch.bfloat16)
@@ -1012,27 +1012,27 @@ class MiniWorldModel(nn.Module):
 #   3B            2560     32     20      128       ~2.9B
 def MiniWorld_B(**kwargs):
     """~0.12B. hidden=768, depth=12, heads=12 (head_dim=64)."""
-    return MiniWorldModel(depth=12, hidden_size=768, num_heads=12, patch_size=1, **kwargs)
+    return kwargs.pop("_model_class", MiniWorldModel)(depth=12, hidden_size=768, num_heads=12, patch_size=1, **kwargs)
 
 
 def MiniWorld_L(**kwargs):
     """~0.39B. hidden=1024, depth=24, heads=16 (head_dim=64)."""
-    return MiniWorldModel(depth=24, hidden_size=1024, num_heads=16, patch_size=1, **kwargs)
+    return kwargs.pop("_model_class", MiniWorldModel)(depth=24, hidden_size=1024, num_heads=16, patch_size=1, **kwargs)
 
 
 def MiniWorld_0_5B(**kwargs):
     """~0.55B. hidden=1152, depth=28, heads=16 (head_dim=72)."""
-    return MiniWorldModel(depth=28, hidden_size=1152, num_heads=16, patch_size=1, **kwargs)
+    return kwargs.pop("_model_class", MiniWorldModel)(depth=28, hidden_size=1152, num_heads=16, patch_size=1, **kwargs)
 
 
 def MiniWorld_1B(**kwargs):
     """~0.96B. hidden=1536, depth=28, heads=12 (head_dim=128)."""
-    return MiniWorldModel(depth=28, hidden_size=1536, num_heads=12, patch_size=1, **kwargs)
+    return kwargs.pop("_model_class", MiniWorldModel)(depth=28, hidden_size=1536, num_heads=12, patch_size=1, **kwargs)
 
 
 def MiniWorld_3B(**kwargs):
     """~2.9B. hidden=2560, depth=32, heads=20 (head_dim=128)."""
-    return MiniWorldModel(depth=32, hidden_size=2560, num_heads=20, patch_size=1, **kwargs)
+    return kwargs.pop("_model_class", MiniWorldModel)(depth=32, hidden_size=2560, num_heads=20, patch_size=1, **kwargs)
 
 
 MiniWorldModels = {

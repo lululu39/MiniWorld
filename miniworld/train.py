@@ -5,6 +5,10 @@ from __future__ import annotations
 import argparse
 import copy
 import os
+import random
+import subprocess
+import hashlib
+import numpy as np
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -16,6 +20,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
+from miniworld.backbones import add_backbone_args, backbone_config
 from miniworld.conditioning.actions import ConditioningConfig, build_cond_seq_for_batch
 from miniworld.data.droid import LeRobotActionDataset
 from miniworld.data.re10k import RealEstate10KDataset
@@ -136,6 +141,12 @@ def load_pretrained(
 ) -> tuple[int, int]:
     """Load a MiniWorld checkpoint, allowing shape changes between curriculum stages."""
     ckpt = torch.load(path, map_location="cpu")
+    recorded = ckpt.get("meta", {})
+    if "backbone" in recorded:
+        expected = backbone_config(model.cfg)
+        mismatches = [key for key, value in expected.items() if key in recorded and recorded[key] != value]
+        if mismatches:
+            raise ValueError(f"Checkpoint backbone configuration differs: {mismatches}")
     model_state = model.state_dict()
     raw_model = ckpt.get("model", ckpt.get("ema_model", {}))
     filtered = {k: v for k, v in raw_model.items() if k in model_state and model_state[k].shape == v.shape}
@@ -174,7 +185,9 @@ def save_checkpoint(
         "optimizer": optimizer.state_dict(),
         "epoch": int(epoch),
         "global_step": int(global_step),
+        "config": vars(args).copy(),
         "meta": {
+            **backbone_config(args),
             "wm_model": args.wm_model,
             "trained_num_frames": args.latent_frames,
             "df_chunk_size": args.df_chunk_size,
@@ -408,6 +421,8 @@ def parse_args() -> argparse.Namespace:
              "0 disables; each event costs one EMA rollout on rank 0.",
     )
     parser.add_argument("--video_log_fps", type=int, default=8, help="Frame rate of the videos logged to W&B.")
+    parser.add_argument("--seed", type=int, default=42)
+    add_backbone_args(parser)
     args = parser.parse_args()
     if args.wandb_name is None:
         # Curriculum stages share a parent dir, so the leaf alone ("stage1_lf6")
@@ -422,6 +437,13 @@ def main() -> None:
     args = parse_args()
     dist_info = setup_distributed()
     device = torch.device(f"cuda:{dist_info['local_rank']}" if torch.cuda.is_available() else "cpu")
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    args.git_revision = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    lock_path = Path(__file__).resolve().parents[1] / "uv.lock"
+    args.dependency_lock_sha256 = hashlib.sha256(lock_path.read_bytes()).hexdigest()
     torch.backends.cudnn.benchmark = True
     wandb_run = None
 
@@ -451,6 +473,11 @@ def main() -> None:
         ema_denoiser = copy.deepcopy(target).requires_grad_(False)
         optimizer = build_optimizer(args, denoiser)
         global_batch_size = args.batch_size * int(dist_info["world_size"])
+        if is_main_process():
+            import json
+            output = Path(args.output_dir)
+            output.mkdir(parents=True, exist_ok=True)
+            (output / "config.json").write_text(json.dumps(vars(args), indent=2) + "\n")
         wandb_run = init_wandb(args, global_batch_size)
 
         start_epoch, global_step = 0, 0

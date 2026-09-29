@@ -14,6 +14,10 @@
 
 </div>
 
+## Research backbones and uv environment
+
+This fork supports `--backbone transformer|rtransformer|tas`. Use `uv sync --locked` and `uv run --no-sync ...`. See [REPRODUCING.md](REPRODUCING.md) for source revisions, state semantics, validation and launch commands. The original installation recipe below is retained for upstream reference; this fork includes `pyproject.toml` and `uv.lock`.
+
 ## Introduction
 
 MiniWorld is a compact framework for training **streaming video world models from scratch**. Instead of adapting a pretrained bidirectional video generator, MiniWorld directly learns causal next-state prediction with a block-causal Video Diffusion Transformer and Rectified Flow.
@@ -92,8 +96,7 @@ Verify the installation:
 python -c "import torch, flash_attn; print('PyTorch:', torch.__version__, '| CUDA:', torch.version.cuda)"
 ```
 
-> [!IMPORTANT]
-> This repository is intentionally lightweight and does not currently provide a `setup.py` or `pyproject.toml`. Run the commands from the repository root, or prepend `PYTHONPATH=.` when invoking Python modules elsewhere.
+> Use the uv environment above for this fork; run Python modules from the repository root.
 
 ## Data and Checkpoints
 

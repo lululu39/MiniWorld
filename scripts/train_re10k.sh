@@ -7,13 +7,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_DIR}"
 
+BACKBONE="${BACKBONE:-transformer}"
 MODEL="${MODEL:-1B}" # choices: B, L, 0.5B, 1B, 3B
 DATA_ROOT="${DATA_ROOT:?Set DATA_ROOT to the RealEstate10K video root}"
 POSE_DIR="${POSE_DIR:?Set POSE_DIR to the RealEstate10K pose tensor root}"
 VAE_CKPT="${VAE_CKPT:?Set VAE_CKPT to Wan2.2_VAE.pth}"
 # Optional: caches the per-video length scan so later stages and reruns skip it.
 FILTER_CACHE_DIR="${FILTER_CACHE_DIR:-}"
-OUTPUT_DIR="${OUTPUT_DIR:-${REPO_DIR}/outputs/re10k_${MODEL}}"
+OUTPUT_DIR="${OUTPUT_DIR:-${REPO_DIR}/outputs/re10k_${BACKBONE}_${MODEL}}"
 WANDB_PROJECT="${WANDB_PROJECT:-miniworld}"
 
 STAGE1_LATENT_FRAMES="${STAGE1_LATENT_FRAMES:-6}"
@@ -34,7 +35,7 @@ NODE_RANK="${NODE_RANK:-${ARNOLD_ID:-0}}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-${ARNOLD_WORKER_GPU:-8}}"
 MASTER_ADDR="${MASTER_ADDR:-${ARNOLD_WORKER_0_HOST:-127.0.0.1}}"
 MASTER_PORT="${MASTER_PORT:-12461}"
-TORCHRUN=(torchrun --nnodes="${NNODES}" --node_rank="${NODE_RANK}" --nproc_per_node="${NPROC_PER_NODE}" --master_addr="${MASTER_ADDR}" --master_port="${MASTER_PORT}")
+TORCHRUN=(uv run --no-sync torchrun --nnodes="${NNODES}" --node_rank="${NODE_RANK}" --nproc_per_node="${NPROC_PER_NODE}" --master_addr="${MASTER_ADDR}" --master_port="${MASTER_PORT}")
 
 COMMON_ARGS=(
   -m miniworld.train
@@ -42,6 +43,10 @@ COMMON_ARGS=(
   --data_root "${DATA_ROOT}"
   --pose_dir "${POSE_DIR}"
   --wm_model "${MODEL}"
+  --backbone "${BACKBONE}"
+  --num_memory_tokens "${NUM_MEMORY_TOKENS:-256}"
+  --memory_window_frames "${MEMORY_WINDOW_FRAMES:-4}"
+  --seed "${SEED:-42}"
   --vae_checkpoint "${VAE_CKPT}"
   --resize_h 240
   --resize_w 320
@@ -56,6 +61,9 @@ COMMON_ARGS=(
 if [[ -n "${FILTER_CACHE_DIR}" ]]; then
   COMMON_ARGS+=(--dataset_filter_cache_dir "${FILTER_CACHE_DIR}")
 fi
+
+# Optional model/experiment flags, forwarded to each curriculum stage.
+COMMON_ARGS+=("$@")
 
 echo "Stage 1/4: latent_frames=${STAGE1_LATENT_FRAMES}, batch=${STAGE1_BATCH_SIZE}, epochs=${STAGE1_EPOCHS}"
 "${TORCHRUN[@]}" "${COMMON_ARGS[@]}" \

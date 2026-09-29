@@ -7,10 +7,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_DIR}"
 
+BACKBONE="${BACKBONE:-transformer}"
 MODEL="${MODEL:-1B}" # choices: B, L, 0.5B, 1B, 3B
 DATA_ROOT="${DATA_ROOT:?Set DATA_ROOT to the LeRobot DROID root}"
 VAE_CKPT="${VAE_CKPT:?Set VAE_CKPT to Wan2.2_VAE.pth}"
-OUTPUT_DIR="${OUTPUT_DIR:-${REPO_DIR}/outputs/droid_${MODEL}}"
+OUTPUT_DIR="${OUTPUT_DIR:-${REPO_DIR}/outputs/droid_${BACKBONE}_${MODEL}}"
 WANDB_PROJECT="${WANDB_PROJECT:-miniworld}"
 ACTION_CAMERA_VIEWS="${ACTION_CAMERA_VIEWS:-exterior_image_1_left}"
 ACTION_KEYS="${ACTION_KEYS:-cartesian_position,gripper_position}"
@@ -33,7 +34,7 @@ NODE_RANK="${NODE_RANK:-${ARNOLD_ID:-0}}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-${ARNOLD_WORKER_GPU:-8}}"
 MASTER_ADDR="${MASTER_ADDR:-${ARNOLD_WORKER_0_HOST:-127.0.0.1}}"
 MASTER_PORT="${MASTER_PORT:-12471}"
-TORCHRUN=(torchrun --nnodes="${NNODES}" --node_rank="${NODE_RANK}" --nproc_per_node="${NPROC_PER_NODE}" --master_addr="${MASTER_ADDR}" --master_port="${MASTER_PORT}")
+TORCHRUN=(uv run --no-sync torchrun --nnodes="${NNODES}" --node_rank="${NODE_RANK}" --nproc_per_node="${NPROC_PER_NODE}" --master_addr="${MASTER_ADDR}" --master_port="${MASTER_PORT}")
 
 COMMON_ARGS=(
   -m miniworld.train
@@ -42,6 +43,10 @@ COMMON_ARGS=(
   --action_camera_views "${ACTION_CAMERA_VIEWS}"
   --action_keys "${ACTION_KEYS}"
   --wm_model "${MODEL}"
+  --backbone "${BACKBONE}"
+  --num_memory_tokens "${NUM_MEMORY_TOKENS:-256}"
+  --memory_window_frames "${MEMORY_WINDOW_FRAMES:-4}"
+  --seed "${SEED:-42}"
   --vae_checkpoint "${VAE_CKPT}"
   --resize_h 240
   --resize_w 320
@@ -52,6 +57,9 @@ COMMON_ARGS=(
   --use_muon
   --wandb_project "${WANDB_PROJECT}"
 )
+
+# Optional model/experiment flags, forwarded to each curriculum stage.
+COMMON_ARGS+=("$@")
 
 echo "Stage 1/4: latent_frames=${STAGE1_LATENT_FRAMES}, batch=${STAGE1_BATCH_SIZE}, epochs=${STAGE1_EPOCHS}"
 "${TORCHRUN[@]}" "${COMMON_ARGS[@]}" \

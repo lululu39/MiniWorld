@@ -12,6 +12,10 @@
 
 </div>
 
+## 研究主干与 uv 环境
+
+本分支支持 `--backbone transformer|rtransformer|tas`，使用 `uv sync --locked` 创建环境。移植来源、状态语义、测试与实验启动命令见 [REPRODUCING.md](REPRODUCING.md)。下方保留上游安装说明；本分支已提供 `pyproject.toml` 和 `uv.lock`。
+
 ## 简介
 
 MiniWorld 是一个用于**从零训练流式视频世界模型**的紧凑框架。它不依赖对预训练双向视频生成器的改造，而是用块因果（block-causal）Video Diffusion Transformer 配合 Rectified Flow，直接学习因果的下一状态预测。
@@ -90,7 +94,7 @@ python -c "import torch, flash_attn; print('PyTorch:', torch.__version__, '| CUD
 ```
 
 > [!IMPORTANT]
-> 本仓库刻意保持轻量，目前不提供 `setup.py` 或 `pyproject.toml`。请在仓库根目录执行命令；若要在其他位置调用这些 Python 模块，请在命令前加上 `PYTHONPATH=.`。
+> 本分支请使用上述 uv 环境，并在仓库根目录执行 Python 模块。
 
 ## 数据与权重
 

@@ -6,6 +6,8 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
+from miniworld.backbones import BACKBONE_DEFAULTS, build_video_model
+from miniworld.recurrent import VideoState
 from miniworld.vae.codec import print0 as _print0
 
 
@@ -101,6 +103,8 @@ class DenoiserConfig:
         self.df_train_time_bins: int = 50
         self.df_ardiff_step: int = 1
 
+        for k, v in BACKBONE_DEFAULTS.items():
+            setattr(self, k, v)
         for k, v in kwargs.items():
             if hasattr(self, k):
                 setattr(self, k, v)
@@ -127,7 +131,7 @@ class Denoiser(nn.Module):
                 f"Unknown MiniWorld model {cfg.wm_model!r}. "
                 f"Choose one of {sorted(MiniWorldModels)}."
             )
-        self.net = MiniWorldModels[cfg.wm_model](
+        self.net = build_video_model(cfg.wm_model, cfg,
             input_size=cfg.latent_size,
             in_channels=cfg.latent_channels,
             num_frames=cfg.latent_frames,
@@ -528,6 +532,8 @@ class DiffusionForcingDenoiser(Denoiser):
         cache: List[Optional[Tuple[torch.Tensor, torch.Tensor]]],
         new_kv: List[Optional[Tuple[torch.Tensor, torch.Tensor]]],
     ) -> List[Optional[Tuple[torch.Tensor, torch.Tensor]]]:
+        if isinstance(new_kv, VideoState):
+            return new_kv  # complete functional snapshot, including committed banks
         depth = len(cache)
         out: List[Optional[Tuple[torch.Tensor, torch.Tensor]]] = [None] * depth
         for i in range(depth):
@@ -564,6 +570,18 @@ class DiffusionForcingDenoiser(Denoiser):
         Net layout stays contiguous ``[0, cache_frames)`` and inside the trained
         RoPE range, while the true origin frame(s) stay resident as an anchor.
         """
+        if isinstance(cache, VideoState):
+            shifted = DiffusionForcingDenoiser._evict_and_shift_cache(
+                cache.kv, drop_frames, tokens_per_frame, rope_module, sink_frames)
+            remaining = shifted[-1][0].shape[-2] if shifted[-1] is not None else 0
+            # Recent chunk occupies the suffix; intersect it with retained sink/FIFO ranges.
+            old_length = cache.kv[-1][0].shape[-2] if cache.kv[-1] is not None else 0
+            recent_start = old_length - cache.previous_tokens
+            removed_start = sink_frames * tokens_per_frame
+            removed_end = min(old_length, removed_start + drop_frames * tokens_per_frame)
+            removed_recent = max(0, removed_end - max(recent_start, removed_start))
+            previous = min(remaining, cache.previous_tokens - removed_recent)
+            return VideoState(shifted, cache.banks, previous)
         if drop_frames <= 0:
             return cache
         sink_frames = max(0, sink_frames)
@@ -793,7 +811,7 @@ class DiffusionForcingDenoiser(Denoiser):
                     past_kv_list=None, current_position_offset=0,
                     return_kv=True, chunk_size=chunk_size,
                 )
-                cache_cond = list(kv_cond_ctx)
+                cache_cond = kv_cond_ctx
                 if use_cfg:
                     ctx_uncond, ctx_drop_uncond = self._make_uncond(ctx_cond)
                     _, kv_uncond_ctx = net.forward_with_cache(
@@ -801,7 +819,7 @@ class DiffusionForcingDenoiser(Denoiser):
                         past_kv_list=None, current_position_offset=0,
                         return_kv=True, chunk_size=chunk_size, cond_drop=ctx_drop_uncond,
                     )
-                    cache_uncond = list(kv_uncond_ctx)
+                    cache_uncond = kv_uncond_ctx
                 cache_frames = n_full_ctx_frames
                 # Decode clean context immediately (same order as batch decode).
                 _stream_decode_upto(n_full_ctx_frames)

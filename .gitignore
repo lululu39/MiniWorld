@@ -46,3 +46,9 @@ filter_cache/
 .vscode/
 .idea/
 *.swp
+
+# Private credentials
+tokens.txt
+.env
+.netrc
+*.pem

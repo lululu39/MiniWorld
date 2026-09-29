@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from miniworld.backbones import add_backbone_args, backbone_config, BACKBONE_DEFAULTS
 import json
 import os
 import tempfile
@@ -316,6 +317,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--save_fps", type=int, default=8)
     parser.add_argument("--benchmark_stream_timing", action="store_true")
     parser.add_argument("--benchmark_no_save", action="store_true")
+    add_backbone_args(parser)
     args = parser.parse_args()
     return args
 
@@ -341,6 +343,8 @@ def main() -> None:
     weights, meta = read_checkpoint(args.checkpoint)
     args.latent_frames = resolve_latent_frames(weights, meta, args)
     args.wm_model = resolve_wm_model(meta, args)
+    for key, default in BACKBONE_DEFAULTS.items():
+        setattr(args, key, meta.get(key, default))
     print0(f"[Checkpoint] {args.checkpoint}: wm_model={args.wm_model}, latent_frames={args.latent_frames}")
     denoiser = build_denoiser(args).to(device).eval()
     load_weights(weights, denoiser)
