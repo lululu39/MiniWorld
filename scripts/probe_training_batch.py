@@ -31,6 +31,7 @@ from miniworld.vae.codec import load_wan22_vae, vae_decode, vae_encode
 
 
 def probe(vae, sample, args, frames, batch, backbone):
+    args.probe_phase = 'setup'
     torch.manual_seed(42)
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
@@ -57,6 +58,7 @@ def probe(vae, sample, args, frames, batch, backbone):
     for step in range(args.steps):
         torch.cuda.synchronize()
         started = time.perf_counter()
+        args.probe_phase = 'vae_and_pose'
         with torch.no_grad(), torch.autocast('cuda', dtype=torch.bfloat16):
             latents = vae_encode(vae, video_for_vae)
             cond = build_cond_seq_for_batch(cfg=cond_cfg, poses=poses, actions=None,
@@ -64,15 +66,18 @@ def probe(vae, sample, args, frames, batch, backbone):
         torch.cuda.synchronize()
         after_vae = time.perf_counter()
         optimizer.zero_grad(set_to_none=True)
+        args.probe_phase = 'forward'
         with torch.autocast('cuda', dtype=torch.bfloat16):
             # The last iteration also covers training's reconstruction tensors.
             outputs = wrapped(latents, cond, return_pred=step == args.steps - 1)
         loss, pred, noise_t = outputs if isinstance(outputs, tuple) else (outputs, None, None)
+        args.probe_phase = 'backward'
         loss.backward()
         grad_norm = torch.nn.utils.clip_grad_norm_(wrapped.parameters(), 1.)
         if not torch.isfinite(loss) or not torch.isfinite(grad_norm):
             raise RuntimeError('Nonfinite loss or gradients')
         before = model.net.final_layer.linear.weight.detach().clone()
+        args.probe_phase = 'optimizer_and_ema'
         optimizer.step()
         update_ema(model, ema, .9999)
         if torch.equal(before, model.net.final_layer.linear.weight):
@@ -84,6 +89,7 @@ def probe(vae, sample, args, frames, batch, backbone):
         dit_times.append(ended - after_vae)
         losses.append(float(loss.detach()))
         if pred is not None:
+            args.probe_phase = 'reconstruction_decode'
             with torch.no_grad(), torch.autocast('cuda', dtype=torch.bfloat16):
                 rgb = vae_decode(vae, pred[:1].float())
             if not torch.isfinite(rgb).all():
@@ -156,9 +162,12 @@ def main():
                     case_args.lr = args.stage_lrs[(8, 16, 32, 64).index(frames)]
                 try:
                     result = probe(vae, sample, case_args, frames, batch, name)
-                except torch.OutOfMemoryError:
+                except torch.OutOfMemoryError as exc:
                     result = dict(status='out_of_memory', backbone=name, frames=frames,
-                                  batch_per_gpu=batch, memory_fraction=args.memory_fraction)
+                                  batch_per_gpu=batch, memory_fraction=args.memory_fraction,
+                                  phase=getattr(case_args, 'probe_phase', 'setup'), error=str(exc),
+                                  peak_allocated_gib=torch.cuda.max_memory_allocated()/2**30,
+                                  peak_reserved_gib=torch.cuda.max_memory_reserved()/2**30)
                 record['results'].append(result)
                 path.write_text(json.dumps(record, indent=2) + '\n')
                 print(json.dumps(result), flush=True)
