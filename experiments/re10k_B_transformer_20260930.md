@@ -46,3 +46,26 @@ The length-filter cache was derived from the downloaded DFoT frame-timestamp
 metadata for21/61/125/253 RGB frames, after matching file inventories and
 checking32 actual video frame counts per split. Cache provenance and eligible
 counts are in `re10k/filter_cache/metadata_cache_provenance.json`.
+
+## Verified startup
+
+- Launched2026-09-30 00:40:20 UTC; curriculum supervisor PID1093287.
+- Fixed source checkout: output root's `source/`, detached at
+  `1d18919ddd02a0b01a725d3dbbbe7ff2ec398bd6`, with its own `uv sync --locked`
+  environment. Later edits to the main workspace do not affect this run.
+- VAE source revision: `Wan-AI/Wan2.2-TI2V-5B@921dbaf3f1674a56f47e83fb80a34bac8a8f203e`;
+  download LFS SHA256: `20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36`.
+  VAE has704,688,668 frozen parameters, separate from the112.43M trainable DiT.
+- Stage1 training samples after length/pose filtering:63,681; selected eval
+  samples:8. Eligible train counts for21/61/125/253 frames:
+  63,681 / 55,660 / 29,530 / 9,785. Eligible test counts:
+  6,930 / 6,098 / 3,205 / 1,099.
+- All8 GPUs showed active training (95–100% at the startup observation),
+  approximately14–15GiB allocated by the processes per card.
+- Public W&B readback at00:42:12 UTC confirmed `running`, train_step100,
+  train/loss1.5542407, and1.6181 step/s. Subsequent local log reached step140
+  with finite loss1.256290. These are startup observations, not final results.
+- Stage1 run: https://wandb.ai/LVSM-Experiment/miniworld/runs/ec2c3d7e57be439294aec99ee285dc92
+- `startup_verified.json` in the output root stores the W&B readback. First
+  periodic quality evaluation is scheduled at step1000; no quality result was
+  claimed at startup.
