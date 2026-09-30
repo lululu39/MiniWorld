@@ -110,6 +110,8 @@ def main():
                         help='backbone:latent_frames:batch, e.g. tas:64:4')
     parser.add_argument('--steps', type=int, default=3)
     parser.add_argument('--lr', type=float, default=2e-4)
+    parser.add_argument('--stage-lrs', type=float, nargs=4, default=None,
+                        help='Override LR for the 8/16/32/64-latent-frame stages')
     parser.add_argument('--memory-fraction', type=float, default=.65,
                         help='Hard allocator limit; protect an existing GPU workload')
     parser.add_argument('--output', required=True)
@@ -149,8 +151,11 @@ def main():
         try:
             for name, frames, batch in cases:
                 print(f'PROBE {name} frames={frames} batch={batch}', flush=True)
+                case_args = copy.copy(args)
+                if args.stage_lrs:
+                    case_args.lr = args.stage_lrs[(8, 16, 32, 64).index(frames)]
                 try:
-                    result = probe(vae, sample, args, frames, batch, name)
+                    result = probe(vae, sample, case_args, frames, batch, name)
                 except torch.OutOfMemoryError:
                     result = dict(status='out_of_memory', backbone=name, frames=frames,
                                   batch_per_gpu=batch, memory_fraction=args.memory_fraction)

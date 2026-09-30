@@ -33,6 +33,10 @@ STAGE1_BATCH_SIZE="${STAGE1_BATCH_SIZE:-8}"
 STAGE2_BATCH_SIZE="${STAGE2_BATCH_SIZE:-4}"
 STAGE3_BATCH_SIZE="${STAGE3_BATCH_SIZE:-1}"
 STAGE4_BATCH_SIZE="${STAGE4_BATCH_SIZE:-1}"
+STAGE1_LR="${STAGE1_LR:-1e-4}"
+STAGE2_LR="${STAGE2_LR:-2e-5}"
+STAGE3_LR="${STAGE3_LR:-2e-5}"
+STAGE4_LR="${STAGE4_LR:-2e-5}"
 STAGE1_EPOCHS="${STAGE1_EPOCHS:-100}"
 STAGE2_EPOCHS="${STAGE2_EPOCHS:-50}"
 STAGE3_MAX_TRAIN_STEPS="${STAGE3_MAX_TRAIN_STEPS:-30000}"
@@ -99,7 +103,7 @@ echo "Stage 1/4: latent_frames=${STAGE1_LATENT_FRAMES}, batch=${STAGE1_BATCH_SIZ
   --latent_frames "${STAGE1_LATENT_FRAMES}" \
   --batch_size "${STAGE1_BATCH_SIZE}" \
   --max_epochs "${STAGE1_EPOCHS}" \
-  --lr 1e-4 \
+  --lr "${STAGE1_LR}" \
   --curriculum_stage 1 \
   --output_dir "${OUTPUT_DIR}/stage1_lf${STAGE1_LATENT_FRAMES}"
 fi
@@ -112,7 +116,7 @@ echo "Stage 2/4: latent_frames=${STAGE2_LATENT_FRAMES}, batch=${STAGE2_BATCH_SIZ
   --latent_frames "${STAGE2_LATENT_FRAMES}" \
   --batch_size "${STAGE2_BATCH_SIZE}" \
   --max_epochs "${STAGE2_EPOCHS}" \
-  --lr 2e-5 \
+  --lr "${STAGE2_LR}" \
   --load_pretrained "${STAGE1_CKPT}" \
   --curriculum_stage 2 \
   --output_dir "${OUTPUT_DIR}/stage2_lf${STAGE2_LATENT_FRAMES}"
@@ -126,7 +130,7 @@ echo "Stage 3/4: latent_frames=${STAGE3_LATENT_FRAMES}, batch=${STAGE3_BATCH_SIZ
   --latent_frames "${STAGE3_LATENT_FRAMES}" \
   --batch_size "${STAGE3_BATCH_SIZE}" \
   --max_train_steps "${STAGE3_MAX_TRAIN_STEPS}" \
-  --lr 2e-5 \
+  --lr "${STAGE3_LR}" \
   --load_pretrained "${STAGE2_CKPT}" \
   --curriculum_stage 3 \
   --output_dir "${OUTPUT_DIR}/stage3_lf${STAGE3_LATENT_FRAMES}"
@@ -140,11 +144,10 @@ echo "Stage 4/4: latent_frames=${STAGE4_LATENT_FRAMES}, batch=${STAGE4_BATCH_SIZ
   --latent_frames "${STAGE4_LATENT_FRAMES}" \
   --batch_size "${STAGE4_BATCH_SIZE}" \
   --max_train_steps "${STAGE4_MAX_TRAIN_STEPS}" \
-  --lr 2e-5 \
+  --lr "${STAGE4_LR}" \
   --load_pretrained "${STAGE3_CKPT}" \
   --curriculum_stage 4 \
   --output_dir "${OUTPUT_DIR}/stage4_lf${STAGE4_LATENT_FRAMES}"
 fi
 
 echo "Done: ${OUTPUT_DIR}/stage4_lf${STAGE4_LATENT_FRAMES}/last.pt"
-
