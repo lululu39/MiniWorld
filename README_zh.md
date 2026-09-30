@@ -378,7 +378,7 @@ bash scripts/train_re10k.sh
 
 ### 日志
 
-训练日志默认写入 [LVSM-Experiment/miniworld](https://wandb.ai/LVSM-Experiment/miniworld)。每次实验通过 `RUN_NAME`（或 CLI 的 `--wandb_name`）定义名称，各课程阶段使用独立 run 并归入同一 group。W&B 初始化失败会停止训练；可显式使用 `--no-wandb` 或 `--wandb_mode offline`。
+训练日志默认写入 [LVSM-Experiment/miniworld](https://wandb.ai/LVSM-Experiment/miniworld)。每次实验通过 `RUN_NAME`（或 CLI 的 `--wandb_name`）定义名称，四个课程阶段共用一个 run，`train_step` 连续累计，并记录 stage 和阶段内步数。W&B 初始化失败会停止训练；可显式使用 `--no-wandb` 或 `--wandb_mode offline`。
 
 设置 `EVAL_EVERY=1000`、`EVAL_DATA_ROOT` 和 RE10K 的 `EVAL_POSE_DIR`，即可定期用 EMA 模型在固定 held-out 样本上评估 PSNR、SSIM、LPIPS，并写入 W&B 的 `eval/*`。默认全局评估 8 个视频，`EVAL_EVERY=0` 时关闭。详细参数见 [定期评估说明](REPRODUCING.md#periodic-held-out-evaluation-and-wb)。
 

@@ -60,8 +60,11 @@ local; do not copy unrelated LLM evaluations, LVSM datasets or machine setup.
   https://wandb.ai/LVSM-Experiment/miniworld. Keep API keys in private netrc or
   environment variables; never print them or copy them into run records.
 - Define a descriptive run name for each experiment (`RUN_NAME` in launchers,
-  `--wandb_name` in the CLI). The four curriculum stages use separate run names
-  under one group. Use unique output directories; do not reuse historical run IDs.
+  `--wandb_name` in the CLI). All four curriculum stages of one experiment share
+  a single W&B run through `OUTPUT_DIR/wandb_run.json` and explicit resume.
+  Log cumulative `train_step` plus stage/local-step/latent-frame fields. Keep
+  stage checkpoints in separate directories. Fresh experiments use fresh run
+  identities; never attach an unrelated experiment to a historical run.
 - Enable periodic held-out EMA evaluation with `--eval_every` and explicit eval
   data/pose paths. Use fixed sample IDs, noise seeds and protocol when comparing
   checkpoints. Keep PSNR/SSIM/LPIPS in `eval/*` and use `train_step` as the W&B

@@ -408,8 +408,8 @@ and filtering touches no video files.
 Training logs loss, learning rate, and throughput on rank 0 every `--log_every`
 steps to [LVSM-Experiment/miniworld](https://wandb.ai/LVSM-Experiment/miniworld).
 Set `RUN_NAME` in the launchers (or `--wandb_name` in the CLI) for each experiment;
-curriculum stages have separate names under a common group. The scripts provide
-unique timestamp-based defaults. W&B initialization failures stop training;
+all four curriculum stages share one run with a cumulative `train_step` axis.
+The scripts provide unique timestamp-based names for new experiments. W&B initialization failures stop training;
 `--no-wandb` disables it and `--wandb_mode offline` writes local logs.
 
 Enable held-out EMA quality evaluation with `EVAL_EVERY=1000`, `EVAL_DATA_ROOT`,

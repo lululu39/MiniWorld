@@ -20,6 +20,8 @@ OUTPUT_DIR="${OUTPUT_DIR:-${REPO_DIR}/outputs/${RUN_NAME}}"
 WANDB_PROJECT="${MINIWORLD_WANDB_PROJECT:-miniworld}"
 WANDB_ENTITY="${MINIWORLD_WANDB_ENTITY:-LVSM-Experiment}"
 EVAL_EVERY="${EVAL_EVERY:-0}"
+START_STAGE="${START_STAGE:-1}"
+if [[ ! "$START_STAGE" =~ ^[1-4]$ ]]; then echo "START_STAGE must be 1..4" >&2; exit 2; fi
 ACTION_CAMERA_VIEWS="${ACTION_CAMERA_VIEWS:-exterior_image_1_left}"
 ACTION_KEYS="${ACTION_KEYS:-cartesian_position,gripper_position}"
 
@@ -66,6 +68,8 @@ COMMON_ARGS=(
   --wandb_project "${WANDB_PROJECT}"
   --wandb_entity "${WANDB_ENTITY}"
   --wandb_group "${RUN_NAME}"
+  --wandb_name "${RUN_NAME}"
+  --wandb_run_file "${OUTPUT_DIR}/wandb_run.json"
   --eval_every "${EVAL_EVERY}"
   --eval_num_videos "${EVAL_NUM_VIDEOS:-8}"
   --eval_latent_frames "${EVAL_LATENT_FRAMES:-0}"
@@ -89,17 +93,20 @@ fi
 # Optional model/experiment flags, forwarded to each curriculum stage.
 COMMON_ARGS+=("$@")
 
+if [[ "$START_STAGE" -le 1 ]]; then
 echo "Stage 1/4: latent_frames=${STAGE1_LATENT_FRAMES}, batch=${STAGE1_BATCH_SIZE}, epochs=${STAGE1_EPOCHS}"
 "${TORCHRUN[@]}" "${COMMON_ARGS[@]}" \
   --latent_frames "${STAGE1_LATENT_FRAMES}" \
   --batch_size "${STAGE1_BATCH_SIZE}" \
   --max_epochs "${STAGE1_EPOCHS}" \
   --lr 1e-4 \
-  --wandb_name "${RUN_NAME}_stage1_lf${STAGE1_LATENT_FRAMES}" \
+  --curriculum_stage 1 \
   --output_dir "${OUTPUT_DIR}/stage1_lf${STAGE1_LATENT_FRAMES}"
+fi
 
 STAGE1_CKPT="${OUTPUT_DIR}/stage1_lf${STAGE1_LATENT_FRAMES}/last.pt"
 
+if [[ "$START_STAGE" -le 2 ]]; then
 echo "Stage 2/4: latent_frames=${STAGE2_LATENT_FRAMES}, batch=${STAGE2_BATCH_SIZE}, epochs=${STAGE2_EPOCHS}"
 "${TORCHRUN[@]}" "${COMMON_ARGS[@]}" \
   --latent_frames "${STAGE2_LATENT_FRAMES}" \
@@ -107,11 +114,13 @@ echo "Stage 2/4: latent_frames=${STAGE2_LATENT_FRAMES}, batch=${STAGE2_BATCH_SIZ
   --max_epochs "${STAGE2_EPOCHS}" \
   --lr 2e-5 \
   --load_pretrained "${STAGE1_CKPT}" \
-  --wandb_name "${RUN_NAME}_stage2_lf${STAGE2_LATENT_FRAMES}" \
+  --curriculum_stage 2 \
   --output_dir "${OUTPUT_DIR}/stage2_lf${STAGE2_LATENT_FRAMES}"
+fi
 
 STAGE2_CKPT="${OUTPUT_DIR}/stage2_lf${STAGE2_LATENT_FRAMES}/last.pt"
 
+if [[ "$START_STAGE" -le 3 ]]; then
 echo "Stage 3/4: latent_frames=${STAGE3_LATENT_FRAMES}, batch=${STAGE3_BATCH_SIZE}, max_train_steps=${STAGE3_MAX_TRAIN_STEPS}"
 "${TORCHRUN[@]}" "${COMMON_ARGS[@]}" \
   --latent_frames "${STAGE3_LATENT_FRAMES}" \
@@ -119,11 +128,13 @@ echo "Stage 3/4: latent_frames=${STAGE3_LATENT_FRAMES}, batch=${STAGE3_BATCH_SIZ
   --max_train_steps "${STAGE3_MAX_TRAIN_STEPS}" \
   --lr 2e-5 \
   --load_pretrained "${STAGE2_CKPT}" \
-  --wandb_name "${RUN_NAME}_stage3_lf${STAGE3_LATENT_FRAMES}" \
+  --curriculum_stage 3 \
   --output_dir "${OUTPUT_DIR}/stage3_lf${STAGE3_LATENT_FRAMES}"
+fi
 
 STAGE3_CKPT="${OUTPUT_DIR}/stage3_lf${STAGE3_LATENT_FRAMES}/last.pt"
 
+if [[ "$START_STAGE" -le 4 ]]; then
 echo "Stage 4/4: latent_frames=${STAGE4_LATENT_FRAMES}, batch=${STAGE4_BATCH_SIZE}, max_train_steps=${STAGE4_MAX_TRAIN_STEPS}"
 "${TORCHRUN[@]}" "${COMMON_ARGS[@]}" \
   --latent_frames "${STAGE4_LATENT_FRAMES}" \
@@ -131,8 +142,9 @@ echo "Stage 4/4: latent_frames=${STAGE4_LATENT_FRAMES}, batch=${STAGE4_BATCH_SIZ
   --max_train_steps "${STAGE4_MAX_TRAIN_STEPS}" \
   --lr 2e-5 \
   --load_pretrained "${STAGE3_CKPT}" \
-  --wandb_name "${RUN_NAME}_stage4_lf${STAGE4_LATENT_FRAMES}" \
+  --curriculum_stage 4 \
   --output_dir "${OUTPUT_DIR}/stage4_lf${STAGE4_LATENT_FRAMES}"
+fi
 
 echo "Done: ${OUTPUT_DIR}/stage4_lf${STAGE4_LATENT_FRAMES}/last.pt"
 

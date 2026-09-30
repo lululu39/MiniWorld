@@ -13,6 +13,7 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader, Subset
 
 from miniworld.conditioning.actions import ConditioningConfig, build_cond_seq_for_batch
+from miniworld.tracking import progress_fields
 from miniworld.metrics import VideoMetrics, rgb_context_frames, write_report
 from miniworld.vae.codec import StreamingVAEDecoder, vae_encode
 
@@ -203,14 +204,14 @@ class PeriodicEvaluator:
                 if len(all_rows) != args.eval_num_videos or len({r['sample_id'] for r in all_rows}) != len(all_rows):
                     raise ValueError('Evaluation sample count/identity mismatch')
                 report = write_report(Path(args.output_dir)/'eval'/f'step_{global_step:08d}', all_rows,
-                                      self.metric.protocol(), dict(mode='periodic_ema', global_step=global_step,
+                                      self.metric.protocol(), dict(mode='periodic_ema', global_step=global_step, progress=progress_fields(args, global_step),
                                       eval_latent_frames=self.frames, arguments=vars(args), world_size=self.world_size))
                 scalars = {f'eval/{name}': value for name, value in report['mean'].items()}
                 scalars.update({'eval/num_videos': report['num_videos'],
                                 'eval/seconds': time.monotonic()-started, 'eval/latent_frames': self.frames})
                 if wandb_run is not None:
                     # Explicit train_step avoids dropping eval values logged after train scalars at the same step.
-                    wandb_run.log(dict(train_step=global_step, **scalars))
+                    wandb_run.log(dict(**progress_fields(args, global_step), **scalars))
                 print(f'[Eval] step={global_step} {scalars}', flush=True)
             except Exception as exc:
                 report_error = f'{type(exc).__name__}: {exc}'

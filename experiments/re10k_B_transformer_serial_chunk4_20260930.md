@@ -51,3 +51,31 @@ RTransformer/TaS comparisons, with no advance claim about convergence quality.
   Its `intentional_stop.json` records the change reason. No old checkpoint was
   loaded into this new run. These are startup observations, not convergence or
   an apples-to-apples speed comparison: stage1 video length also changed21->29.
+
+## One W&B run across the curriculum
+
+The user requested a single run across all four stages. Stage1 continues without
+restart on its original code. Its run ID `f9c403e9cc4d441ead4a7dd006d8ac09` will be
+reused by stages2-4 with explicit W&B resume, cumulative train_step and separate
+stage/local-step fields. The display name becomes the base experiment name.
+Stage checkpoint/output directories remain unchanged.
+
+A new immutable `continuation_source/` checkout and uv environment contain the
+tracking changes. Only the old shell supervisor is paused; its foreground uv /
+torchrun process and all GPU workers continue. A controller waits for successful
+stage1 exit and `stage1_lf8/epoch_0100_step_00097200.pt`, removes the paused shell,
+and launches the new curriculum script with `START_STAGE=2`. Failed stage1 does
+not launch subsequent stages. Runtime identities, commit and status are recorded
+in `continuation.json`, `continuation_status.json` and the augmented launcher
+record under the output root. The controller is `scripts/continue_after_stage.py`.
+
+Expected continuous boundaries: stage2 starts97201, stage3 starts184151,
+stage4 starts214151, ending244150. Existing stage1 scalar/media history remains.
+The earlier, intentionally stopped parallel chunk2 experiment is not merged.
+
+During this change, the inherited reconstruction visualization formula was
+corrected from `z+(1-t)*v_pred` to `z+t*v_pred`, consistent with
+`z=(1-t)*x+t*noise` and `v_target=x-noise`. This affects only recon-video display,
+not optimization or generated-video metrics. The live stage1 retains the old
+visualization implementation; new stages use the correction. This version
+boundary is explicitly recorded in W&B metadata; old videos are not relabeled.

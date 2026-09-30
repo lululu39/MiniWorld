@@ -355,18 +355,34 @@ An inherited private-host API key is not sent to the public host: online mode
 uses the existing `api.wandb.ai` netrc entry in that case, or fails with a setup
 error. Global credentials and settings are not modified.
 
-Give each experiment a descriptive `RUN_NAME`; the launchers append
-`_stageN_lfM` for distinct curriculum runs and use the base name as their group.
-Default output directories include the run name. Multi-node launchers require
-an explicit identical RUN_NAME across nodes. Direct CLI supports `--wandb_name`
-and `--wandb_group`; unnamed CLI runs get a unique dataset/backbone/model/length/
-seed/time suffix. New training sessions always create a fresh run ID, including
-checkpoint resume, so historical runs are not silently reused.
+Give each experiment a descriptive `RUN_NAME`. All four stages now share one
+run ID stored in `OUTPUT_DIR/wandb_run.json`, and use `resume=must` after stage1.
+Direct CLI uses `--wandb_run_file` and `--curriculum_stage`. A fresh stage1 launch
+refuses an existing identity file unless `--resume` is explicit; new experiments
+must use new output roots. Multi-node launchers require the same RUN_NAME across
+nodes. Direct standalone CLI runs without a shared identity file still create a
+fresh uniquely named run.
+
+The `train_step` chart axis is cumulative. Checkpoints keep the old stage-local
+`global_step` for training budgets and additionally store `total_train_steps`
+and `curriculum_stage`. Later stages infer their offset from the preceding
+checkpoint; legacy stage1 checkpoints are supported. Scalars and videos also
+record `curriculum/stage`, `curriculum/stage_step`, and
+`curriculum/latent_frames`. Per-stage configs are stored under separate
+`curriculum_stage_N` W&B config keys, preserving stage1's original config.
+Stage directories, checkpoints and per-evaluation JSON files remain separate.
+`START_STAGE=2` (or3/4) skips already-completed stages while loading the preceding
+checkpoint and continuing the shared run. Stage budgets still count local steps.
+
+Online tracking resumes one remote run between processes. In offline mode,
+W&B does not implement server-side resume; each stage writes a separate local
+session even though the recorded run ID is shared. Use online mode for the
+continuous curriculum run described here.
 
 The launchers ignore unrelated inherited W&B entity/project defaults. To
 explicitly override their target use `MINIWORLD_WANDB_ENTITY` /
 `MINIWORLD_WANDB_PROJECT`, or the CLI flags `--wandb_entity` / `--wandb_project`.
-Each stage writes `wandb_run.json` with its run ID, name, URL and mode. Scalars
+Each stage writes a copy of `wandb_run.json` with the shared ID, name, URL and mode. Scalars
 and training videos all use the explicit `train_step` chart axis; eval PSNR/SSIM
 also track their maximum and LPIPS its minimum in W&B summaries. The existing
 `train/gen_video` remains a training-sample visualization, separate from these
@@ -439,3 +455,39 @@ Validation:55 relevant tests pass; all three serial backbones pass BF16 forward,
 backward, optimizer update and fullgraph Inductor compilation at chunk4. The
 synthetic compile results are in ignored `outputs/serial_chunk4_smoke.json`.
 No convergence or throughput equivalence is inferred from these checks.
+
+
+## Live curriculum handoff and reconstruction correction (2026-09-30)
+
+The already-running serial chunk4 stage1 remains on its original immutable
+checkout and keeps training uninterrupted. Its existing W&B run is adopted as
+the shared curriculum run. A separate controller pauses only the old shell
+supervisor (not its GPU trainer), waits for the stage1 foreground process to
+exit0 and its final97200-step checkpoint to exist, then starts stages2-4 from a
+new immutable checkout. The controller never launches later stages after a
+failed/cancelled stage1. Its source is `scripts/continue_after_stage.py`; runtime
+configuration and state are recorded in the experiment output root. The old
+source is not patched in place and no checkpoint rollback is used.
+
+This handoff is specific to the active run; new experiments use the shared-run
+launchers directly. The shared run keeps stage1's existing train_step history;
+stage2 begins at97201, stage3 at184151, and stage4 at214151. Stage1's old logs do
+not retroactively gain the new curriculum fields; its original config and an
+explicit stage1 record identify that portion. Score discontinuities at stage
+boundaries may reflect the changed video length, not just model improvement.
+
+A separate visualization-only bug was found in the upstream denoiser:
+`z=(1-t)*x+t*noise` and `v_target=x-noise` imply `x_hat=z+t*v_pred`.
+The old `z+(1-t)*v_pred` line was incorrect. The corrected line affects only the
+single-step `train/recon_video` branch. Training loss, model targets, iterative
+rollout and held-out PSNR/SSIM/LPIPS do not use this reconstruction expression.
+A test using an oracle velocity checks exact clean-latent recovery at multiple
+noise levels. Captions now label the value as maximum t and state that observed
+context is copied. The still-running old stage1 keeps its legacy visualization;
+stages2-4 and new launches use the fix. Historical recon videos are not relabeled
+as corrected results. The W&B metadata records this version boundary.
+
+Validation includes two consecutive synthetic training stages sharing a mocked
+W&B ID and continuous loss/evaluation steps, legacy-checkpoint offsets, the
+oracle reconstruction test, and real OS-process tests of successful and failed
+stage handoffs. No synthetic online runs are created.

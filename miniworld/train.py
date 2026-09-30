@@ -24,6 +24,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
 from miniworld.validation import add_validation_args, validate_options, due_for_evaluation, PeriodicEvaluator, gather_results
+from miniworld.tracking import progress_fields, checkpoint_progress, resolve_step_offset, wandb_session, write_json
 from miniworld.backbones import add_backbone_args, backbone_config
 from miniworld.conditioning.actions import ConditioningConfig, build_cond_seq_for_batch
 from miniworld.data.droid import LeRobotActionDataset
@@ -142,9 +143,12 @@ def load_pretrained(
     model: torch.nn.Module,
     ema_model: torch.nn.Module,
     optimizer: Optional[torch.optim.Optimizer] = None,
+    progress: Optional[dict] = None,
 ) -> tuple[int, int]:
     """Load a MiniWorld checkpoint, allowing shape changes between curriculum stages."""
     ckpt = torch.load(path, map_location="cpu")
+    if progress is not None:
+        progress.update(checkpoint_progress(ckpt))
     recorded = ckpt.get("meta", {})
     if "backbone" in recorded:
         expected = backbone_config(model.cfg)
@@ -191,6 +195,8 @@ def save_checkpoint(
         "optimizer": optimizer.state_dict(),
         "epoch": int(epoch),
         "global_step": int(global_step),
+        "total_train_steps": progress_fields(args, global_step)["train_step"],
+        "curriculum_stage": getattr(args, "curriculum_stage", 1),
         "config": vars(args).copy(),
         "meta": {
             **backbone_config(args),
@@ -240,21 +246,31 @@ def init_wandb(args: argparse.Namespace, global_batch_size: int) -> Optional[Any
             config = vars(args).copy()
             config.update(batch_size=global_batch_size, global_batch_size=global_batch_size)
             Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+            run_id, run_name, resume_policy, run_file = wandb_session(args)
+            stage = getattr(args, 'curriculum_stage', 1)
+            # Keep each stage's hyperparameters separately; never replace stage1's
+            # top-level config with a different video length/batch size on resume.
+            session_config = {f'curriculum_stage_{stage}': config}
+            if resume_policy == 'never':
+                session_config.update(config)
             run = wandb.init(entity=args.wandb_entity, project=args.wandb_project,
-                             name=args.wandb_name, group=args.wandb_group, config=config,
+                             name=run_name, group=args.wandb_group, config=session_config,
+                             allow_val_change=True,
                              dir=args.output_dir, mode=args.wandb_mode,
-                             id=uuid.uuid4().hex, resume='never',
+                             id=run_id, resume=resume_policy,
                              settings=public_wandb_settings(wandb, args.wandb_mode))
             run.define_metric('train_step')
             run.define_metric('train/*', step_metric='train_step')
             run.define_metric('eval/*', step_metric='train_step')
+            run.define_metric('curriculum/*', step_metric='train_step')
             for metric, direction in [('psnr', 'max'), ('ssim', 'max'), ('lpips', 'min')]:
                 run.define_metric('eval/' + metric, step_metric='train_step', summary=direction)
-            import json
-            (Path(args.output_dir)/'wandb_run.json').write_text(json.dumps(
-                dict(entity=args.wandb_entity, project=args.wandb_project, name=args.wandb_name,
-                     id=run.id, url=run.url, mode=args.wandb_mode), indent=2)+'\n')
-            print0(f'[W&B] {args.wandb_entity}/{args.wandb_project}: {args.wandb_name} ({run.url})')
+            record = dict(entity=args.wandb_entity, project=args.wandb_project, name=run_name,
+                          id=run.id, url=run.url, mode=args.wandb_mode)
+            write_json(Path(args.output_dir)/'wandb_run.json', record)
+            if run_file:
+                write_json(run_file, record)
+            print0(f'[W&B] {args.wandb_entity}/{args.wandb_project}: {run_name} ({run.url}; {resume_policy})')
         except Exception as exc:
             error = f'{type(exc).__name__}: {exc}'
             if run is not None:
@@ -349,9 +365,9 @@ def log_train_videos(
 
     wandb_run.log(
         {
-            "train_step": global_step,
+            **progress_fields(args, global_step),
             "train/recon_video": wandb.Video(
-                recon, fps=args.video_log_fps, format="mp4", caption=f"t={float(t_noise[0]):.4f}"
+                recon, fps=args.video_log_fps, format="mp4", caption=f"Single-step reconstruction | max t={float(t_noise[0]):.4f} | observed context copied"
             ),
             "train/gen_video": wandb.Video(
                 generated, fps=args.video_log_fps, format="mp4", caption=f"step={global_step}"
@@ -446,6 +462,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--wandb_entity", default="LVSM-Experiment")
     parser.add_argument("--wandb_project", default="miniworld")
     parser.add_argument("--wandb_group", default=None)
+    parser.add_argument("--wandb_run_file", default=None, help="Shared curriculum run identity JSON")
+    parser.add_argument("--curriculum_stage", type=int, choices=[1, 2, 3, 4], default=1)
+    parser.add_argument("--step_offset", type=int, default=None, help="Default: inferred from preceding checkpoint")
     parser.add_argument("--wandb_mode", choices=['online', 'offline'], default='online')
     parser.add_argument("--wandb_name", default=None, help="Custom run name; defaults to dataset/backbone/model/stage/seed plus a unique suffix.")
     parser.add_argument(
@@ -464,6 +483,10 @@ def parse_args() -> argparse.Namespace:
         parser.error('--df_chunk_size must be positive')
     if args.backbone in ('rtransformer', 'tas') and args.latent_frames <= args.df_chunk_size:
         parser.error('Recurrent training requires more than one chunk so state writers receive gradients')
+    if args.step_offset is not None and args.step_offset < 0:
+        parser.error('--step_offset must be nonnegative')
+    if args.curriculum_stage > 1 and not (args.load_pretrained or args.resume):
+        parser.error('Later curriculum stages require --load_pretrained or --resume')
     validate_options(args)
     if args.wandb_name is None:
         stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')
@@ -522,21 +545,21 @@ def main() -> None:
         ema_denoiser = copy.deepcopy(target).requires_grad_(False)
         optimizer = build_optimizer(args, denoiser)
         global_batch_size = args.batch_size * int(dist_info["world_size"])
-        if is_main_process():
-            import json
-            output = Path(args.output_dir)
-            output.mkdir(parents=True, exist_ok=True)
-            (output / "config.json").write_text(json.dumps(vars(args), indent=2) + "\n")
-        wandb_run = init_wandb(args, global_batch_size)
-
         start_epoch, global_step = 0, 0
+        restored_progress = None
         if args.load_pretrained:
-            load_pretrained(args.load_pretrained, target, ema_denoiser)
-            start_epoch, global_step = 0, 0
+            restored_progress = {}
+            load_pretrained(args.load_pretrained, target, ema_denoiser, progress=restored_progress)
         elif args.resume:
             latest = find_latest_checkpoint(args.output_dir)
             if latest:
-                start_epoch, global_step = load_pretrained(latest, target, ema_denoiser, optimizer)
+                restored_progress = {}
+                start_epoch, global_step = load_pretrained(latest, target, ema_denoiser, optimizer,
+                                                          progress=restored_progress)
+        resolve_step_offset(args, restored_progress)
+        if is_main_process():
+            write_json(Path(args.output_dir)/'config.json', vars(args))
+        wandb_run = init_wandb(args, global_batch_size)
 
         dtype = torch.bfloat16 if args.mixed_precision == "bf16" else torch.float32
         last_log_time, last_log_step = time.time(), global_step
@@ -594,12 +617,13 @@ def main() -> None:
                     current_lr = float(optimizer.param_groups[0]["lr"])
                     print0(
                         f"[Train] epoch={epoch} step={step} global_step={global_step} "
-                        f"loss={loss_value:.6f} lr={current_lr:.2e} speed={steps_per_sec:.2f} step/s"
+                        f"total_step={progress_fields(args, global_step)['train_step']} "
+                        f"stage={args.curriculum_stage} loss={loss_value:.6f} lr={current_lr:.2e} speed={steps_per_sec:.2f} step/s"
                     )
                     if wandb_run is not None:
                         wandb_run.log(
                             {
-                                "train_step": global_step,
+                                **progress_fields(args, global_step),
                                 "train/loss": loss_value,
                                 "train/lr": current_lr,
                                 "train/step_per_sec": steps_per_sec,

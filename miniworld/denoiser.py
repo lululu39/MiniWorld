@@ -497,7 +497,8 @@ class Denoiser(nn.Module):
         if not return_pred:
             return v_loss
 
-        x_pred = z + (1.0 - t_view) * v_pred
+        # z=(1-t)*x+t*noise and v=x-noise, hence x_hat=z+t*v.
+        x_pred = z + t_view * v_pred
         clean_mask_5d = clean_mask.view(b, 1, t, 1, 1)
         x_pred = x_pred * (1.0 - clean_mask_5d) + latents * clean_mask_5d
         return v_loss, x_pred.detach(), t_frame.max(dim=1).values.detach()
