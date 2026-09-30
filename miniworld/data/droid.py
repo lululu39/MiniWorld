@@ -118,8 +118,12 @@ class LeRobotActionDataset(Dataset):
         color_aug: bool = True,
         require_success: bool = True,
         max_keep: Optional[int] = None,
+        strict_loading: bool = False,
+        return_metadata: bool = False,
     ) -> None:
         self.root = Path(root)
+        self.strict_loading = strict_loading
+        self.return_metadata = return_metadata
         self.num_frames = num_frames
         self.frame_interval = frame_interval
         self.resize_hw = tuple(resize_hw)
@@ -265,7 +269,7 @@ class LeRobotActionDataset(Dataset):
         sel = _apply_norm(sel, self.norm_lo, self.norm_hi, self.norm_mode)
         return torch.from_numpy(sel).float()
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor | str]:
         n = len(self.samples)
         for off in range(n):
             ep = self.samples[(idx + off) % n]
@@ -277,8 +281,14 @@ class LeRobotActionDataset(Dataset):
                 )
                 video, frame_ids = self._decode_clip(self._video_path(ep, view))
                 actions = self._load_actions(ep, frame_ids)
-                return {"videos": video, "actions": actions}
+                sample = {"videos": video, "actions": actions}
+                if self.return_metadata:
+                    sample.update(sample_id=f"episode_{ep:06d}:{view}",
+                                  source_path=str(self._video_path(ep, view)), frame_ids=torch.tensor(frame_ids))
+                return sample
             except Exception as e:  # noqa: BLE001
+                if self.strict_loading:
+                    raise RuntimeError(f"Evaluation episode failed: {ep}") from e
                 print(f"[LeRobot][Skip] ep={ep} err={e}", flush=True)
                 continue
         raise RuntimeError("All samples failed to decode in this dataset shard")

@@ -84,7 +84,11 @@ class RealEstate10KDataset(Dataset):
         max_keep: Optional[int] = None,
         return_pose: bool = False,
         pose_dir: Optional[str] = None,
+        strict_loading: bool = False,
+        return_metadata: bool = False,
     ) -> None:
+        self.strict_loading = strict_loading
+        self.return_metadata = return_metadata
         self.num_frames = int(num_frames)
         self.randomize = bool(randomize)
         self.resize_hw = tuple(resize_hw)
@@ -148,15 +152,19 @@ class RealEstate10KDataset(Dataset):
             raise RuntimeError(f"Unexpected pose layout: {pose.shape}")
         return pose
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor | str]:
         for off in range(len(self.files)):
             path = self.files[(idx + off) % len(self.files)]
             try:
                 video, frame_ids = self._decode_video(path)
-                sample: Dict[str, torch.Tensor] = {"videos": video}
+                sample: Dict[str, torch.Tensor | str] = {"videos": video}
                 if self.return_pose:
                     sample["poses"] = self._load_pose(path, frame_ids)
+                if self.return_metadata:
+                    sample.update(sample_id=path.stem, source_path=str(path), frame_ids=torch.tensor(frame_ids))
                 return sample
             except Exception as exc:
+                if self.strict_loading:
+                    raise RuntimeError(f"Evaluation sample failed: {path}") from exc
                 _print0(f"[RealEstate10K] skip {path}: {exc}")
         raise RuntimeError("All samples failed to decode")

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from miniworld.backbones import add_backbone_args, backbone_config, BACKBONE_DEFAULTS
+from miniworld.backbones import add_backbone_args, BACKBONE_DEFAULTS
 import json
 import os
 import tempfile
@@ -59,6 +59,7 @@ def build_dataset(args: argparse.Namespace):
             color_aug=False,
             require_success=True,
             max_keep=args.sample_num_videos,
+            strict_loading=args.metrics, return_metadata=args.metrics,
         )
     return RealEstate10KDataset(
         dataset_paths=[args.data_root],
@@ -71,6 +72,7 @@ def build_dataset(args: argparse.Namespace):
         max_keep=args.sample_num_videos,
         return_pose=True,
         pose_dir=args.pose_dir,
+        strict_loading=args.metrics, return_metadata=args.metrics,
     )
 
 
@@ -283,7 +285,7 @@ def parse_args() -> argparse.Namespace:
         "--history_len",
         type=int,
         default=1,
-        help="Clean visual context frames at the start of the rollout; must be > 0.",
+        help="Clean LATENT context frames; metrics exclude 1 + 4*(history_len-1) RGB frames.",
     )
     parser.add_argument("--latent_channels", type=int, default=48)
     parser.add_argument("--spatial_downsample", type=int, default=16)
@@ -317,6 +319,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--save_fps", type=int, default=8)
     parser.add_argument("--benchmark_stream_timing", action="store_true")
     parser.add_argument("--benchmark_no_save", action="store_true")
+    parser.add_argument('--metrics', action='store_true', help='Compute PSNR/SSIM/LPIPS against dataset RGB targets')
+    parser.add_argument('--metric_frame_batch_size', type=int, default=4)
+    parser.add_argument('--lpips_net', choices=['vgg', 'alex'], default='vgg')
+    parser.add_argument('--seed', type=int, default=42)
     add_backbone_args(parser)
     args = parser.parse_args()
     return args
@@ -325,6 +331,17 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     """Run streaming sampling."""
     args = parse_args()
+    if args.metrics:
+        if args.custom_camera_trajectory is not None:
+            raise ValueError('--metrics requires ground-truth video, not a custom camera trajectory')
+        if args.benchmark_stream_timing:
+            raise ValueError('Run quality metrics separately from the throughput benchmark')
+        if not 1 <= args.history_len < args.total_len or args.sample_num_videos < 1:
+            raise ValueError('Metrics require positive sample count and 1 <= history_len < total_len')
+        if args.metric_frame_batch_size < 1:
+            raise ValueError('metric_frame_batch_size must be positive')
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 
@@ -356,10 +373,21 @@ def main() -> None:
     pred_root = sample_root / "pred"
     pred_root.mkdir(parents=True, exist_ok=True)
     timing_rows = []
+    metric_rows = []
+    evaluator = None
+    if args.metrics:
+        from miniworld.metrics import VideoMetrics, rgb_context_frames, write_report
+        evaluator = VideoMetrics(device, args.metric_frame_batch_size, args.lpips_net)
 
-    for idx, batch in enumerate(dataloader):
-        if idx >= args.sample_num_videos:
+    samples = iter(dataloader)
+    for idx in range(args.sample_num_videos):
+        # Seed before fetching too: DROID may choose among several camera views.
+        torch.manual_seed(args.seed + idx)
+        batch = next(samples, None)
+        if batch is None:
             break
+        # Give the rollout the same noise seed independently of dataset RNG use.
+        torch.manual_seed(args.seed + idx)
         videos = batch["videos"].to(device)
         poses = batch.get("poses")
         actions = batch.get("actions")
@@ -403,6 +431,15 @@ def main() -> None:
             gen_sec = time.perf_counter() - start
             pred_latents, pred_rgb = result
 
+        if evaluator is not None:
+            row = evaluator.score(pred_rgb[0].permute(1, 0, 2, 3), videos[0].permute(0, 3, 1, 2),
+                                  context_frames=rgb_context_frames(sample_history_len))
+            row.update(sample_idx=idx, sample_id=batch['sample_id'][0],
+                       source_path=batch['source_path'][0], source_frame_ids=batch['frame_ids'][0].tolist(),
+                       seed=args.seed + idx)
+            metric_rows.append(row)
+            print0(f"[Metrics] {row['sample_id']}: {row['mean']}")
+
         if args.benchmark_stream_timing:
             row = summarize_timing(denoiser.last_eval_meta)
             row.update({"sample_idx": idx, "gen_sec": gen_sec})
@@ -412,6 +449,13 @@ def main() -> None:
             video = ((pred_rgb[0].permute(1, 2, 3, 0).clamp(-1, 1) + 1.0) * 127.5).to(torch.uint8)
             write_video(os.fspath(pred_root / f"sample_{idx:04d}.mp4"), video, fps=args.save_fps)
             print0(f"[Sample] wrote sample_{idx:04d}.mp4")
+
+    if evaluator is not None:
+        summary = write_report(sample_root, metric_rows, evaluator.protocol(),
+                               dict(mode='online_pre_encode', arguments=vars(args),
+                                    checkpoint_meta=meta, ground_truth='original dataset RGB'))
+        print0(f"[Metrics] {summary['num_videos']} videos: {summary['mean']}")
+        print0(f"[Metrics] saved {sample_root / 'metrics_summary.json'}")
 
     if timing_rows:
         timing_path = sample_root / "throughput_timing.jsonl"

@@ -18,6 +18,15 @@ wheels = [
 ]
 
 [[package]]
+name = "av"
+version = "14.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/b6/83129e0337376214b0304893cbf0ad0a54718bb47845517fa5870439ca0b/av-14.2.0.tar.gz", hash = "sha256:132b5d52ca262b97b0356e8f48cbbe54d0ac232107a722ab8cc8c0c19eafa17b", size = 4063022, upload-time = "2025-02-25T13:51:40.676Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/af/3a/4156fa8234aa388c8aa6106f6356aad2e03682a4bca238c259caa4db7ecd/av-14.2.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e7647d4a8d1855d05fe70784a962b15e103a2d4a0eba1dea7bfbfd95753dedb9", size = 39678470, upload-time = "2025-02-25T13:49:50.047Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.7.22"
 source = { registry = "https://pypi.org/simple" }
@@ -178,6 +187,22 @@ wheels = [
 ]
 
 [[package]]
+name = "lpips"
+version = "0.1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "scipy", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "torchvision", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "tqdm", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e8/2d/4b8148d32f5bd461eb7d5daa54fcc998f86eaa709a57f4ef6aa4c62f024f/lpips-0.1.4.tar.gz", hash = "sha256:3846331df6c69688aec3d300a5eeef6c529435bc8460bd58201c3d62e56188fa", size = 18029, upload-time = "2021-08-25T22:10:32.803Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9b/13/1df50c7925d9d2746702719f40e864f51ed66f307b20ad32392f1ad2bb87/lpips-0.1.4-py3-none-any.whl", hash = "sha256:fd537af5828b69d2e6ffc0a397bd506dbc28ca183543617690844c08e102ec5e", size = 53763, upload-time = "2021-08-25T22:10:31.257Z" },
+]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -192,14 +217,17 @@ name = "miniworld"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "av", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "decord", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "einops", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "flash-attn", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "lpips", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "moviepy", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "numpy", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pandas", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pillow", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pyarrow", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "pytorch-msssim", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "torchvision", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "triton", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -213,14 +241,17 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "av", specifier = "==14.2.0" },
     { name = "decord", specifier = "==0.6.0" },
     { name = "einops", specifier = ">=0.8,<0.9" },
     { name = "flash-attn", url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.8cxx11abiTRUE-cp311-cp311-linux_x86_64.whl" },
+    { name = "lpips", specifier = "==0.1.4" },
     { name = "moviepy", specifier = ">=2,<3" },
     { name = "numpy", specifier = ">=2.2,<2.3" },
     { name = "pandas", specifier = ">=2.2,<3" },
     { name = "pillow" },
     { name = "pyarrow", specifier = ">=19,<20" },
+    { name = "pytorch-msssim", specifier = "==1.0.0" },
     { name = "torch", specifier = "==2.8.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchvision", specifier = "==0.23.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "triton", specifier = "==3.4.0" },
@@ -678,6 +709,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pytorch-msssim"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/69/43/fd181aef46e96ed025f5056efa1c45e63c93d377fbe7ea784a21ce058d03/pytorch_msssim-1.0.0.tar.gz", hash = "sha256:53273f03ce5c435f706f49feb5110a8afe90b2519484b0fe0df9639670106d0b", size = 10113, upload-time = "2023-05-25T17:15:57.146Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/8c/856047f955acc30179e9255fdc488059ca22f0938519523d53494f7cfee8/pytorch_msssim-1.0.0-py3-none-any.whl", hash = "sha256:0b4b7bbf7035fe9dc8084244237aac13b1f104852c45b63a7e9fab4363bede54", size = 7744, upload-time = "2023-05-25T17:15:55.809Z" },
+]
+
+[[package]]
 name = "pytz"
 version = "2026.4"
 source = { registry = "https://pypi.org/simple" }
@@ -709,6 +752,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
+]
+
+[[package]]
+name = "scipy"
+version = "1.17.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7a/97/5a3609c4f8d58b039179648e62dd220f89864f56f7357f5d4f45c29eb2cc/scipy-1.17.1.tar.gz", hash = "sha256:95d8e012d8cb8816c226aef832200b1d45109ed4464303e997c5b13122b297c0", size = 30573822, upload-time = "2026-02-23T00:26:24.851Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/7d/af933f0f6e0767995b4e2d705a0665e454d1c19402aa7e895de3951ebb04/scipy-1.17.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:43af8d1f3bea642559019edfe64e9b11192a8978efbd1539d7bc2aaa23d92de4", size = 35349300, upload-time = "2026-02-23T00:16:49.108Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/19/f926cb11c42b15ba08e3a71e376d816ac08614f769b4f47e06c3580c836a/scipy-1.17.1-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:4eb6c25dd62ee8d5edf68a8e1c171dd71c292fdae95d8aeb3dd7d7de4c364082", size = 37741314, upload-time = "2026-02-23T00:17:12.576Z" },
 ]
 
 [[package]]

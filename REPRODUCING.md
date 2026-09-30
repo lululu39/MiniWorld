@@ -173,3 +173,118 @@ four 32x32 RGB frames with expected intensities. `uv sync --locked` succeeds;
 
 These randomly initialized checks do not compare model quality. No dataset/VAE
 training, W&B baseline experiment or distributed run was launched.
+
+## PSNR / SSIM / LPIPS evaluation
+
+`miniworld.metrics.VideoMetrics` evaluates matching **RGB `[T,3,H,W]` floating
+point tensors in `[-1,1]`**. It computes all three metrics in FP32, even when
+called inside BF16 autocast. Frames are processed in small batches to bound
+LPIPS memory. Prediction and target are clamped to `[-1,1]`; PSNR and SSIM use
+`[0,1]`, and LPIPS uses its native `[-1,1]` input. There is no implicit temporal
+alignment, resizing, or truncation in the tensor API.
+
+The conventions are explicit, following the audited LVSM `origin/yibo_dev`
+implementation where applicable:
+
+- **PSNR:** compute `-10*log10(MSE)` independently for each RGB frame, then average
+  the dB scores. This matches LVSM's per-view averaging; it is not PSNR computed
+  from a single pooled video MSE. Exact matches have positive infinity, represented
+  as the string `"inf"` in standard JSON rather than nonstandard `Infinity`.
+- **SSIM:** `pytorch-msssim==1.0.0`, RGB channel average, 11x11 Gaussian window,
+  sigma1.5, data_range1, valid border handling; the same settings as LVSM's
+  `model/fancy_losses/ssim_loss.py`, reporting SSIM rather than `1-SSIM`.
+- **LPIPS:** official `lpips==0.1.4`, calibrated metric version0.1, pretrained
+  **VGG** by default (as in LVSM's `LossComputer`); `--lpips_net alex` is an explicit
+  alternative. Results with different backbones should not be mixed. First use
+  downloads torchvision backbone weights into the torch hub cache if absent;
+  no random-weight fallback is used. See the [official LPIPS implementation](https://github.com/richzhang/PerceptualSimilarity).
+
+These are documented metric choices, not a claim of exact numerical equivalence
+to MiniWorld's unpublished evaluation implementation. Scores are absolute, not
+the paper's normalized radar-chart ratios. LVSM's `eval/loss` combines pixel L2
+and optionally weighted LPIPS; MiniWorld's flow-matching loss is a different
+quantity. This addition does not change the training objective or add periodic
+validation to the training loop.
+
+### Evaluate while sampling a checkpoint
+
+Add `--metrics` to `uv run --no-sync python -m miniworld.sample ...`, or set
+`METRICS=1` in either dataset's sampling launcher. For example:
+
+```bash
+source /mnt/localssd/dataset/miniworld_paths.env
+DATA_ROOT="$RE10K_EVAL_DATA_ROOT" POSE_DIR="$RE10K_EVAL_POSE_DIR" \
+CKPT=/path/to/checkpoint.pt VAE_CKPT=/path/to/Wan2.2_VAE.pth \
+GPU=0 METRICS=1 SAMPLE_NUM_VIDEOS=50 SEED=42 \
+SAMPLE_DIR=outputs/eval/re10k_tas \
+bash scripts/sample_re10k.sh
+```
+
+For DROID use `DATA_ROOT="$DROID_EVAL_DATA_ROOT"` with `scripts/sample_droid.sh`.
+Select an authorized GPU. `LPIPS_NET=vgg` and `METRIC_FRAME_BATCH_SIZE=4` can be
+set in either launcher; remaining CLI arguments are forwarded. Append
+`--benchmark_no_save` to skip MP4 encoding while still calculating metrics.
+PyAV is included in the uv lock for the existing torchvision video writer.
+
+The sampler scores the generated RGB tensor **before lossy MP4 encoding**
+against original dataset RGB, not VAE-reconstructed targets. It excludes the
+observed prefix: `--history_len` is in latent frames, so the number of excluded
+RGB frames is `1 + 4*(history_len-1)` (one frame by default). Only the generated
+future is scored. Metric mode rejects custom camera trajectories with no GT and
+throughput benchmarking in the same invocation. Dataset decoding errors fail
+evaluation instead of silently substituting another sample.
+
+Sampling uses `--seed` (default42), with seed+sample_index per rollout. Use the
+same samples, seed, conditioning, resolution, horizon, CFG and sampling steps
+for backbone comparisons. This reports one sample per condition, not best-of-N.
+No W&B run is created by these evaluation entry points.
+
+### Evaluate saved videos without loading a world model
+
+Create a JSONL manifest with explicitly paired clips; relative paths resolve
+against the manifest's directory:
+
+```json
+{"id":"clip_001","prediction":"pred/clip_001.mp4","target":"gt/clip_001.mp4"}
+{"id":"clip_002","prediction":"pred/clip_002.mp4","target":"gt/clip_002.mp4"}
+```
+
+```bash
+uv run --no-sync python -m miniworld.evaluate \
+  --manifest /path/to/pairs.jsonl --output_dir outputs/eval/saved \
+  --device cpu --context_frames 1 --lpips_net vgg
+```
+
+Use `CUDA_VISIBLE_DEVICES=0 ... --device cuda` on an authorized GPU for speed.
+Optional `--num_frames 253` explicitly selects the first253 frames of both
+clips; `--resize_hw 240 320` explicitly resizes both. Without these options,
+lengths and dimensions must match. Clips must already correspond to the same
+starting time and frame indices; no FPS resampling or alignment search occurs.
+The offline path measures decoded/compressed video quality, so its scores can
+differ from the online path that measures pre-encoding RGB.
+
+### Reports and verification
+
+Both paths write to the chosen output directory:
+
+- `metrics_per_video.jsonl`: sample IDs, means, every scored frame's index and
+  PSNR/SSIM/LPIPS; online reports also include source paths/frame IDs and seeds.
+- `metrics_summary.json`: equal-weight video means, frame-index curves with
+  contributing-video counts, metric/package settings and run provenance.
+
+Each video's score is the mean over its evaluated frames; the dataset score
+is the mean over videos, so a longer video does not receive more weight.
+Reusing an output directory overwrites its metric reports. Keep separate
+output directories for separate checkpoints and protocols.
+
+Focused tests (including actual pretrained LPIPS and MP4 read/write):
+
+```bash
+CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=2 uv run --no-sync python -m pytest -q tests/test_metrics.py
+```
+
+Verified on 2026-09-30: all8 metric tests pass, including a sampler integration
+check with a simulated rollout and RGB-prefix exclusion. GPU0 FP32 metric
+execution inside BF16 autocast was also checked on real DROID/RE10K RGB clips
+with synthetic pixel noise; results are in ignored `outputs/metrics_smoke/`.
+This validates the metric pipeline, not a trained model's generation quality.

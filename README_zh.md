@@ -16,6 +16,8 @@
 
 本分支支持 `--backbone transformer|rtransformer|tas`，使用 `uv sync --locked` 创建环境。移植来源、状态语义、测试与实验启动命令见 [REPRODUCING.md](REPRODUCING.md)。下方保留上游安装说明；本分支已提供 `pyproject.toml` 和 `uv.lock`。
 
+采样脚本设置 `METRICS=1` 即可计算 PSNR、SSIM、LPIPS；也支持 `python -m miniworld.evaluate` 离线评估视频对。详见 [评估协议与命令](REPRODUCING.md#psnr--ssim--lpips-evaluation)。
+
 ## 简介
 
 MiniWorld 是一个用于**从零训练流式视频世界模型**的紧凑框架。它不依赖对预训练双向视频生成器的改造，而是用块因果（block-causal）Video Diffusion Transformer 配合 Rectified Flow，直接学习因果的下一状态预测。

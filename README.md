@@ -18,6 +18,8 @@
 
 This fork supports `--backbone transformer|rtransformer|tas`. Use `uv sync --locked` and `uv run --no-sync ...`. See [REPRODUCING.md](REPRODUCING.md) for source revisions, state semantics, validation and launch commands. The original installation recipe below is retained for upstream reference; this fork includes `pyproject.toml` and `uv.lock`.
 
+Quality metrics are available with `METRICS=1` in the sampling scripts; `python -m miniworld.evaluate` also scores saved video pairs. See [metric protocols and commands](REPRODUCING.md#psnr--ssim--lpips-evaluation).
+
 ## Introduction
 
 MiniWorld is a compact framework for training **streaming video world models from scratch**. Instead of adapting a pretrained bidirectional video generator, MiniWorld directly learns causal next-state prediction with a block-causal Video Diffusion Transformer and Rectified Flow.

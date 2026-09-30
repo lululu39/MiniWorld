@@ -15,6 +15,11 @@ VAE_CKPT="${VAE_CKPT:?Set VAE_CKPT to Wan2.2_VAE.pth}"
 SAMPLE_DIR="${SAMPLE_DIR:-${REPO_DIR}/samples/re10k_${MODEL}}"
 GPU="${GPU:-0}"
 
+METRIC_ARGS=()
+if [[ "${METRICS:-0}" == "1" ]]; then
+  METRIC_ARGS+=(--metrics --lpips_net "${LPIPS_NET:-vgg}" --metric_frame_batch_size "${METRIC_FRAME_BATCH_SIZE:-4}")
+fi
+
 CUDA_VISIBLE_DEVICES="${GPU}" uv run --no-sync python -m miniworld.sample \
   --dataset re10k \
   --data_root "${DATA_ROOT}" \
@@ -31,5 +36,6 @@ CUDA_VISIBLE_DEVICES="${GPU}" uv run --no-sync python -m miniworld.sample \
   --stream_sink_size "${STREAM_SINK_SIZE:-1}" \
   --cfg_scale "${CFG_SCALE:-2.0}" \
   --num_sampling_steps "${NUM_SAMPLING_STEPS:-100}" \
-  --sample_num_videos "${SAMPLE_NUM_VIDEOS:-50}"
+  --sample_num_videos "${SAMPLE_NUM_VIDEOS:-50}" \
+  --seed "${SEED:-42}" "${METRIC_ARGS[@]}" "$@"
 
