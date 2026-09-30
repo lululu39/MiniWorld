@@ -20,6 +20,9 @@ local; do not copy unrelated LLM evaluations, LVSM datasets or machine setup.
 - Use the repo-local uv environment: Python 3.11, `uv sync --locked`, then
   `uv run --no-sync ...`. Commit `pyproject.toml` and `uv.lock` together when
   changing dependencies. Do not initialize from neighboring setup scripts.
+- Reuse the main checkout's `.venv` for additional worktrees via
+  `UV_PROJECT_ENVIRONMENT`; do not create a duplicate environment unless different
+  dependencies require it. The currently running fixed-revision job predates this preference.
 - Torch and the official FlashAttention wheel must have matching Python,
   CUDA, Torch and C++ ABI versions. See `REPRODUCING.md` for tested versions.
 - Verify changed behavior with focused tests and a small forward/backward/update
@@ -59,6 +62,8 @@ local; do not copy unrelated LLM evaluations, LVSM datasets or machine setup.
   `LVSM-Experiment`, project `miniworld`:
   https://wandb.ai/LVSM-Experiment/miniworld. Keep API keys in private netrc or
   environment variables; never print them or copy them into run records.
+- Include the backbone/model explicitly in every run name (for example
+  `re10k_B_transformer_serial_c4_s42_...`, not just `re10k_B_serial_...`).
 - Define a descriptive run name for each experiment (`RUN_NAME` in launchers,
   `--wandb_name` in the CLI). All four curriculum stages of one experiment share
   a single W&B run through `OUTPUT_DIR/wandb_run.json` and explicit resume.

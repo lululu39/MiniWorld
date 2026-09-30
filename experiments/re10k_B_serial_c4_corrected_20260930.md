@@ -45,3 +45,25 @@ forward/backward/Inductor checks remain applicable; no model kernels changed.
 The previous run stopped after its last logged3030 step, preserving its2916-step
 checkpoint and evaluations through3000. Its continuation controller was cancelled;
 there is no deferred launch left attached to that run.
+
+
+## Verified startup and display-name correction
+
+- Started2026-09-30 02:25:11 UTC; supervisor PID1853839.
+- Immutable training revision: `10eb062f0d22eefad329a5420b2f70849c72e64a`.
+- Public W&B readback at02:28:01 UTC confirmed `running`, cumulative step150,
+  stage1/local step150,8 latent frames, loss1.1986213 and1.2505 step/s.
+- Source/config verification confirms scratch initialization, serial Transformer,
+  chunk4, offset0 and corrected `x_pred=z+t_view*v_pred` from the first step.
+- Shared run ID: `08731ad6239140c1a8fcf27bef94914f`.
+  https://wandb.ai/LVSM-Experiment/miniworld/runs/08731ad6239140c1a8fcf27bef94914f
+- At the user's request the display name was corrected to include the backbone:
+  `re10k_B_transformer_serial_c4_s42_fixed_20260930T022125Z`.
+  Root/stage run-identity JSON files were updated so subsequent stages use the
+  corrected name. The ID, history, checkpoint paths and active training process
+  remain the same; `run_name_update.json` records the rename.
+- This run uses the separately synced uv environment in its immutable checkout.
+  Its `uv.lock` is byte-identical to `/data/yibo/MiniWorld/uv.lock` (SHA256
+  `7a79e838806250bcb9329ad47251c45ec61940c406f34d4e9e9763b216a9d49e`).
+  The user prefers reusing the main checkout's uv environment for future starts;
+  this preference does not require interrupting the active process.
