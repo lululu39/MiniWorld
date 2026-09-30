@@ -519,3 +519,12 @@ that stays in a multi-chunk in-flight window must retain t=0, not the penultimat
 positive timestep. The corrected schedule indexes its actual prior state.
 There are78 passing tests, including analytical per-step path checks and exact
 single-in-flight output equivalence. No noise/CFG/EMA hyperparameters changed.
+
+### Common larger-batch B comparison
+
+The prepared RE10K profile uses per-GPU batches32/16/8/2 across Transformer,
+RTransformer and TaS, with common per-stage LRs and preserved video exposure.
+See [the capacity record and launch instructions](experiments/re10k_B_shared_batch_20260930.md).
+The existing launchers also accept STAGE1_LR through STAGE4_LR; their defaults
+remain1e-4/2e-5/2e-5/2e-5. Capacity checks use the actual VAE/pose pipeline and
+singleton DDP, not an eight-rank throughput or convergence benchmark.
