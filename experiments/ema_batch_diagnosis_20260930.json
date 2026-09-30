@@ -1,0 +1,164 @@
+{
+  "diagnostic": {
+    "checkpoint": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/transformer/stage1_lf8/epoch_0033_step_00008019.pt",
+    "step": 8019,
+    "protocol": "same checkpoint, same8 held-out clips/noise/CFG/5-step sampler",
+    "results": {
+      "ema": {
+        "psnr": 14.242642555918012,
+        "ssim": 0.40637473921690664,
+        "lpips": 0.6498394841993494
+      },
+      "raw": {
+        "psnr": 21.300657957792282,
+        "ssim": 0.7104361678606698,
+        "lpips": 0.21742827769568457
+      }
+    }
+  },
+  "training_revision": "f6ca495df45d7180b10ae37e44003bba4a0b1952",
+  "curves": {
+    "old": [
+      {
+        "step": 1000,
+        "videos_seen": 64000,
+        "psnr": 10.036863529256411,
+        "ssim": 0.2231062307089035,
+        "lpips": 0.8088956347533636
+      },
+      {
+        "step": 2000,
+        "videos_seen": 128000,
+        "psnr": 10.233648953693253,
+        "ssim": 0.23625367573861566,
+        "lpips": 0.8033661147845644
+      },
+      {
+        "step": 3000,
+        "videos_seen": 192000,
+        "psnr": 10.519412738936289,
+        "ssim": 0.2491105489565858,
+        "lpips": 0.7941165768674442
+      },
+      {
+        "step": 4000,
+        "videos_seen": 256000,
+        "psnr": 11.008154558283943,
+        "ssim": 0.2619004169745105,
+        "lpips": 0.7770029686923536
+      },
+      {
+        "step": 5000,
+        "videos_seen": 320000,
+        "psnr": 11.83008116057941,
+        "ssim": 0.2778774267062545,
+        "lpips": 0.7486437918352229
+      },
+      {
+        "step": 6000,
+        "videos_seen": 384000,
+        "psnr": 12.943906038999557,
+        "ssim": 0.3017815534424569,
+        "lpips": 0.7138083571834224
+      },
+      {
+        "step": 7000,
+        "videos_seen": 448000,
+        "psnr": 14.073887509959084,
+        "ssim": 0.33466686228556297,
+        "lpips": 0.6787705937666552
+      },
+      {
+        "step": 8000,
+        "videos_seen": 512000,
+        "psnr": 14.892480875764575,
+        "ssim": 0.3712617782210665,
+        "lpips": 0.6454214338612344
+      },
+      {
+        "step": 9000,
+        "videos_seen": 576000,
+        "psnr": 15.351454185588018,
+        "ssim": 0.40584447973274757,
+        "lpips": 0.6155700580483036
+      }
+    ],
+    "new": [
+      {
+        "step": 1000,
+        "videos_seen": 256000,
+        "psnr": 10.081830622894422,
+        "ssim": 0.2270093320403248,
+        "lpips": 0.8077781083328384
+      },
+      {
+        "step": 2000,
+        "videos_seen": 512000,
+        "psnr": 10.33735061969076,
+        "ssim": 0.24496490674625554,
+        "lpips": 0.8001938898648535
+      },
+      {
+        "step": 3000,
+        "videos_seen": 768000,
+        "psnr": 10.804376295634677,
+        "ssim": 0.2655880134552717,
+        "lpips": 0.7837285497891052
+      },
+      {
+        "step": 4000,
+        "videos_seen": 1024000,
+        "psnr": 11.843295859439033,
+        "ssim": 0.29177404693993075,
+        "lpips": 0.7493251535509313
+      },
+      {
+        "step": 5000,
+        "videos_seen": 1280000,
+        "psnr": 13.122009247541428,
+        "ssim": 0.32293120246114476,
+        "lpips": 0.7127778985138451
+      },
+      {
+        "step": 6000,
+        "videos_seen": 1536000,
+        "psnr": 13.913038130317416,
+        "ssim": 0.35170062864199286,
+        "lpips": 0.6864708534308842
+      },
+      {
+        "step": 7000,
+        "videos_seen": 1792000,
+        "psnr": 14.207546842949732,
+        "ssim": 0.3792070766378726,
+        "lpips": 0.6663621904860649
+      },
+      {
+        "step": 8000,
+        "videos_seen": 2048000,
+        "psnr": 14.245218724012375,
+        "ssim": 0.40587515536961816,
+        "lpips": 0.6501742874804352
+      }
+    ]
+  },
+  "matched_protocol": {
+    "videos": 8,
+    "latent_frames": 8,
+    "observed_rgb_frames": 1,
+    "chunk_latent_frames": 4,
+    "effective_sampling_steps": 5,
+    "cfg_scale": 2.0,
+    "seed_start": 42,
+    "samples_frames_noise_and_metrics_confirmed_equal": true
+  },
+  "ema": {
+    "old_global_batch": 64,
+    "new_global_batch": 256,
+    "decay_both": 0.9999,
+    "initial_parameter_contribution_at8019": 0.4484580671252595,
+    "sample_equivalent_new_decay": 0.9996000599960001
+  },
+  "live_hyperparameters_changed": false,
+  "limitations": "EMA/raw pair establishes current EMA lag; no old/new raw-weight LR ablation or equal-sample convergence comparison."
+}
