@@ -1,0 +1,121 @@
+{
+  "name": "re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z",
+  "revision": "f6ca495df45d7180b10ae37e44003bba4a0b1952",
+  "source": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/source",
+  "environment": {
+    "CUDA_VISIBLE_DEVICES": "0,1,2,3,4,5,6,7",
+    "UV_PROJECT_ENVIRONMENT": "/data/yibo/MiniWorld/.venv",
+    "NNODES": "1",
+    "NPROC_PER_NODE": "8",
+    "NODE_RANK": "0",
+    "MASTER_ADDR": "127.0.0.1",
+    "MASTER_PORT": "29561",
+    "OMP_NUM_THREADS": "2",
+    "PYTHONUNBUFFERED": "1",
+    "MODEL": "B",
+    "START_STAGE": "1",
+    "END_STAGE": "1",
+    "WANDB_STAGE_MODE": "separate",
+    "TRANSFORMER_EXECUTION": "serial",
+    "DF_CHUNK_SIZE": "4",
+    "NUM_MEMORY_TOKENS": "2400",
+    "MEMORY_WINDOW_FRAMES": "0",
+    "SEED": "42",
+    "STAGE1_LATENT_FRAMES": "8",
+    "STAGE1_BATCH_SIZE": "32",
+    "STAGE1_LR": "2e-4",
+    "STAGE1_EPOCHS": "100",
+    "EVAL_EVERY": "1000",
+    "EVAL_NUM_VIDEOS": "8",
+    "EVAL_SEED": "42",
+    "EVAL_SAMPLING_STEPS": "100",
+    "EVAL_CFG_SCALE": "2.0",
+    "EVAL_ARDIFF_STEP": "5",
+    "DATA_ROOT": "/mnt/localssd/dataset/re10k/training_256",
+    "POSE_DIR": "/mnt/localssd/dataset/re10k/training_poses",
+    "FILTER_CACHE_DIR": "/mnt/localssd/dataset/re10k/filter_cache",
+    "EVAL_DATA_ROOT": "/mnt/localssd/dataset/re10k/test_256",
+    "EVAL_POSE_DIR": "/mnt/localssd/dataset/re10k/test_poses",
+    "EVAL_FILTER_CACHE_DIR": "/mnt/localssd/dataset/re10k/filter_cache",
+    "VAE_CKPT": "/mnt/localssd/models/Wan2.2-TI2V-5B/Wan2.2_VAE.pth",
+    "MINIWORLD_WANDB_ENTITY": "LVSM-Experiment",
+    "MINIWORLD_WANDB_PROJECT": "miniworld"
+  },
+  "entries": [
+    {
+      "backbone": "transformer",
+      "stage": 1,
+      "run_name": "re10k_B_transformer_serial_c4_b32_s42_20260930T051012Z_stage1",
+      "environment": {
+        "BACKBONE": "transformer",
+        "RUN_NAME": "re10k_B_transformer_serial_c4_b32_s42_20260930T051012Z",
+        "OUTPUT_DIR": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/transformer"
+      },
+      "command": [
+        "bash",
+        "scripts/train_re10k.sh",
+        "--slot_embed",
+        "--gated_ema",
+        "--write_from_last",
+        "--state_sharing",
+        "--assigned_write"
+      ],
+      "log": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/transformer/train_stage1.log",
+      "expected_checkpoint": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/transformer/stage1_lf8/epoch_0100_step_00024300.pt"
+    },
+    {
+      "backbone": "tas",
+      "stage": 1,
+      "run_name": "re10k_B_tas_serial_c4_b32_mem2400_wfl_shared_aw_ema_s42_20260930T051012Z_stage1",
+      "environment": {
+        "BACKBONE": "tas",
+        "RUN_NAME": "re10k_B_tas_serial_c4_b32_mem2400_wfl_shared_aw_ema_s42_20260930T051012Z",
+        "OUTPUT_DIR": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/tas"
+      },
+      "command": [
+        "bash",
+        "scripts/train_re10k.sh",
+        "--slot_embed",
+        "--gated_ema",
+        "--write_from_last",
+        "--state_sharing",
+        "--assigned_write"
+      ],
+      "log": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/tas/train_stage1.log",
+      "expected_checkpoint": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/tas/stage1_lf8/epoch_0100_step_00024300.pt"
+    },
+    {
+      "backbone": "rtransformer",
+      "stage": 1,
+      "run_name": "re10k_B_rtransformer_serial_c4_b32_s42_20260930T051012Z_stage1",
+      "environment": {
+        "BACKBONE": "rtransformer",
+        "RUN_NAME": "re10k_B_rtransformer_serial_c4_b32_s42_20260930T051012Z",
+        "OUTPUT_DIR": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/rtransformer"
+      },
+      "command": [
+        "bash",
+        "scripts/train_re10k.sh",
+        "--slot_embed",
+        "--gated_ema",
+        "--write_from_last",
+        "--state_sharing",
+        "--assigned_write"
+      ],
+      "log": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/rtransformer/train_stage1.log",
+      "expected_checkpoint": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/rtransformer/stage1_lf8/epoch_0100_step_00024300.pt"
+    }
+  ],
+  "gpus": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "scope": "Three stage1 experiments only, fresh scratch initialization",
+  "wandb_mode": "separate"
+}
