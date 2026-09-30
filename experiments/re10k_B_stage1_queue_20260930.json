@@ -117,5 +117,131 @@
     7
   ],
   "scope": "Three stage1 experiments only, fresh scratch initialization",
-  "wandb_mode": "separate"
+  "wandb_mode": "separate",
+  "dependency_lock_sha256": "7a79e838806250bcb9329ad47251c45ec61940c406f34d4e9e9763b216a9d49e",
+  "precision": "bf16",
+  "initialization": "scratch",
+  "updates_per_model": 24300,
+  "launch": {
+    "pid": 183825,
+    "revision": "f6ca495df45d7180b10ae37e44003bba4a0b1952",
+    "source": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z/source",
+    "gpus": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "started_at": 1790745132.6291792
+  },
+  "wandb_runs": {
+    "transformer": {
+      "entity": "LVSM-Experiment",
+      "project": "miniworld",
+      "name": "re10k_B_transformer_serial_c4_b32_s42_20260930T051012Z_stage1",
+      "id": "de1415b448ee4689971444cc0ceeee33",
+      "url": "https://wandb.ai/LVSM-Experiment/miniworld/runs/de1415b448ee4689971444cc0ceeee33",
+      "mode": "online",
+      "curriculum_stage": 1,
+      "wandb_stage_mode": "separate"
+    }
+  },
+  "old_run_closed": "08731ad6239140c1a8fcf27bef94914f",
+  "capacity_check": {
+    "config": {
+      "data_root": "/mnt/localssd/dataset/re10k/test_256",
+      "pose_dir": "/mnt/localssd/dataset/re10k/test_poses",
+      "filter_cache_dir": "/mnt/localssd/dataset/re10k/filter_cache",
+      "vae_checkpoint": "/mnt/localssd/models/Wan2.2-TI2V-5B/Wan2.2_VAE.pth",
+      "cases": [
+        "tas:8:32"
+      ],
+      "steps": 3,
+      "lr": 0.0002,
+      "num_memory_tokens": 2400,
+      "stage_lrs": null,
+      "memory_fraction": 0.9,
+      "output": "/mnt/localssd/experiments/yibo/miniworld/prep_stage1_queue_20260930/tas2400_capacity.json"
+    },
+    "git_revision": "f6ca495df45d7180b10ae37e44003bba4a0b1952",
+    "lock_sha256": "7a79e838806250bcb9329ad47251c45ec61940c406f34d4e9e9763b216a9d49e",
+    "torch": "2.8.0+cu128",
+    "cuda": "12.8",
+    "torch_seed": 42,
+    "numpy_seed": 42,
+    "gpu": "NVIDIA H100 80GB HBM3",
+    "results": [
+      {
+        "status": "passed",
+        "frames": 8,
+        "raw_frames": 29,
+        "batch_per_gpu": 32,
+        "backbone": "tas",
+        "lr": 0.0002,
+        "parameters": 150349873,
+        "losses": [
+          2.3472747802734375,
+          2.2553701400756836,
+          2.1689400672912598
+        ],
+        "seconds": [
+          6.708557078614831,
+          3.36961211822927,
+          3.3722099298611283
+        ],
+        "median_seconds": 3.370911024045199,
+        "videos_per_second": 9.492982689765272,
+        "vae_pose_seconds": [
+          4.564148101955652,
+          1.7016419051215053,
+          1.7013887092471123
+        ],
+        "forward_backward_update_ema_seconds": [
+          2.1444089766591787,
+          1.6679702131077647,
+          1.670821220614016
+        ],
+        "memory_state": {
+          "bank_shapes": [
+            [
+              1,
+              2400,
+              768
+            ]
+          ],
+          "bank_dtypes": [
+            "torch.bfloat16"
+          ],
+          "persistent_bytes_per_video": 3686400,
+          "cross_chunk_kv_entries": 0
+        },
+        "phase_peak_allocated_gib": {
+          "vae_pose": [
+            37.00759696960449,
+            27.385896682739258,
+            27.386091232299805
+          ],
+          "training": [
+            37.01431655883789,
+            37.577627658843994,
+            37.592185497283936
+          ],
+          "decode": [
+            40.74838304519653
+          ],
+          "state_inspection": [
+            8.203831195831299
+          ]
+        },
+        "peak_allocated_gib": 40.74838304519653,
+        "peak_reserved_gib": 56.923828125
+      }
+    ],
+    "protocol": "Repeated held-out clip; singleton DDP; real VAE/pose; no data-loader or multi-rank timing",
+    "sample_id": "000c3ab189999a83"
+  }
 }

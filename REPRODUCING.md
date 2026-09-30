@@ -40,7 +40,7 @@ names and checkpoint layout are preserved. No neighboring repo is needed at runt
 | RTransformer | Same DiT; chunks traverse all layers sequentially. Older history uses final-layer KV; the immediately preceding chunk blends own/final-layer KV with a learned per-head sigmoid initialized at 0.5 |
 | TaS | Current-chunk bidirectional DiT attention plus memory reads; only fixed token banks cross chunk boundaries and are updated after each layer sweep |
 
-TaS defaults: 256 slots of backbone width, one shared bank, no cross-chunk
+TaS defaults: 2400 slots (two1200-token chunks) of backbone width, one shared bank, no cross-chunk
 raw KV, slot identities, sigmoid EMA initialized at 0.1, final-layer write
 source, and assigned writing. Video defaults are deliberately not the LLM's
 4096/8192 token settings. All five features can be independently disabled via
@@ -535,3 +535,26 @@ or changing the model/checkpoint schema. The historical probe record is retained
 The existing launchers also accept STAGE1_LR through STAGE4_LR; their defaults
 remain1e-4/2e-5/2e-5/2e-5. Capacity checks use the actual VAE/pose pipeline and
 singleton DDP, not an eight-rank throughput or convergence benchmark.
+
+### Stage1 queue and current defaults (2026-09-30)
+
+The user selected a sequential eight-GPU stage1 queue: Transformer, TaS,
+RTransformer. Each starts from scratch with100 epochs (24,300 updates),
+8 latent frames, chunk4, batch32/GPU (global256), and LR2e-4. TaS defaults
+now use2400 slots (two chunks), one shared bank, WFL, assigned write,
+sigmoid EMA and slot identities; cross-chunk raw KV remains forbidden.
+Its inspected BF16 state is3,686,400 bytes per video. One essential real-pipeline
+batch32 check passed before launching; the earlier256-slot measurements are
+historical, and later-stage2400-slot capacity has not been retested.
+
+New CLI/launchers default to a separate W&B run per model/stage. Run names
+include the backbone and stage, with identity files inside each stage directory.
+WANDB_STAGE_MODE=shared / --wandb_stage_mode shared retains the earlier mode
+explicitly. START_STAGE/END_STAGE bound the launch; this queue sets both to1.
+The queue advances only after exit0 and the final stage checkpoint; failure or
+cancellation stops it. See experiments/re10k_B_stage1_queue_20260930.json for
+commands, source revision, dependency lock, paths, GPUs and the first W&B URL.
+
+During preparation, scripts/prepare_stage.py reserves the authorized GPUs;
+release its recorded PID before checks/training. Keep only essential validation
+and move directly to the authorized experiment after it passes.
