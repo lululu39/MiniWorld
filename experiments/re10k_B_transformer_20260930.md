@@ -69,3 +69,13 @@ counts are in `re10k/filter_cache/metadata_cache_provenance.json`.
 - `startup_verified.json` in the output root stores the W&B readback. First
   periodic quality evaluation is scheduled at step1000; no quality result was
   claimed at startup.
+
+## Superseded by the serial chunk4 experiment
+
+On2026-09-30 at01:34 UTC the user-selected protocol changed to serial execution
+and4 latent frames per chunk. This run was intentionally interrupted, not
+completed to its original budget. Last logged step5140; last completed epoch
+checkpoint4975. The original source snapshot, checkpoints, W&B run and evaluation
+reports through step5000 remain intact. See the output root's
+`intentional_stop.json` and `experiments/re10k_B_transformer_serial_chunk4_20260930.md`
+for the fresh replacement run; no old result has been relabeled as chunk4.

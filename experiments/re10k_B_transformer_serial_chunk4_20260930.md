@@ -34,3 +34,20 @@ run is intentionally stopped for this protocol change and its artifacts remain.
 Unlike changing Transformer execution order alone, changing chunk size changes
 the training protocol. This is an exploratory common configuration for later
 RTransformer/TaS comparisons, with no advance claim about convergence quality.
+
+## Verified startup
+
+- Started2026-09-30 01:34:37 UTC; supervisor PID2627266.
+- Immutable source revision: `1e5c8460e4995b6cea419de5e7d47ff056b98f09`,
+  checked out at the output root's `source/`, with an independently synced uv env.
+- Source/runtime config confirms `backbone=transformer`,
+  `transformer_execution=serial`, `df_chunk_size=4`, `latent_frames=8`.
+- Public W&B readback at01:36:24 UTC: `running`, step80, loss1.6527309,
+  1.2535 step/s. Local logs subsequently reached step110 with finite loss1.567333.
+  All8 GPUs showed active compute; startup memory occupancy was about14–16GiB/card.
+- Run URL: https://wandb.ai/LVSM-Experiment/miniworld/runs/f9c403e9cc4d441ead4a7dd006d8ac09
+- The old parallel chunk2 run was intentionally interrupted at its last logged
+  step5140; its4975-step checkpoint and five evaluation events are preserved.
+  Its `intentional_stop.json` records the change reason. No old checkpoint was
+  loaded into this new run. These are startup observations, not convergence or
+  an apples-to-apples speed comparison: stage1 video length also changed21->29.
