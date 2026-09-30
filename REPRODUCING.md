@@ -508,3 +508,14 @@ steps at `inflight_chunks * ar_step`, so a configured100-step limit is not alway
 100 executed updates. In the current stage1 eval (one in-flight chunk, stride5),
 the effective count is5. This change makes the existing protocol explicit;
 it does not change the scheduler, noise distribution or optimizer objective.
+
+
+### Flow Matching audit and asynchronous time-label fix
+
+See [the2026-09-30 formula audit](experiments/flow_matching_audit_20260930.md)
+for the derivation, primary references and test evidence. No additional training
+formula error was found. A separate inference bug was fixed: a completed chunk
+that stays in a multi-chunk in-flight window must retain t=0, not the penultimate
+positive timestep. The corrected schedule indexes its actual prior state.
+There are78 passing tests, including analytical per-step path checks and exact
+single-in-flight output equivalence. No noise/CFG/EMA hyperparameters changed.

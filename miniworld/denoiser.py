@@ -319,10 +319,12 @@ class Denoiser(nn.Module):
             device=device,
         )
 
-        current_lookup = torch.cat([ts[:1], ts[:-1]], dim=0)
-        next_lookup = ts
-        t_chunk = current_lookup[step_index]
-        t_next_chunk = next_lookup[step_index]
+        # Use the actual previous state. A completed chunk may remain visible
+        # in the final in-flight window; it must stay labelled t=0, rather than
+        # being assigned the penultimate nonzero timestep on every later call.
+        previous_index = torch.cat([torch.zeros_like(step_index[:1]), step_index[:-1]], dim=0)
+        t_chunk = ts[previous_index]
+        t_next_chunk = ts[step_index]
         for ci in range(min(n_context_chunks, total_chunks)):
             t_chunk[:, ci] = 0
             t_next_chunk[:, ci] = 0
