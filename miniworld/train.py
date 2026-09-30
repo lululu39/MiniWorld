@@ -363,9 +363,14 @@ def log_train_videos(
         )
         generated = side_by_side_uint8(fixed["video"][0], generated_rgb[0])
 
+    sampling = getattr(ema_denoiser, 'last_eval_meta', {})
+    sampling_scalars = ({'train/gen_effective_sampling_steps': sampling['effective_steps']}
+                        if 'effective_steps' in sampling else {})
     wandb_run.log(
         {
             **progress_fields(args, global_step),
+            **sampling_scalars,
+            'train/recon_t_max': float(t_noise[0]),
             "train/recon_video": wandb.Video(
                 recon, fps=args.video_log_fps, format="mp4", caption=f"Single-step reconstruction | max t={float(t_noise[0]):.4f} | observed context copied"
             ),

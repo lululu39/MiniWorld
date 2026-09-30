@@ -184,7 +184,7 @@ class PeriodicEvaluator:
                                             context_frames=rgb_context_frames(args.eval_history_len))
                     row.update(sample_idx=idx, sample_id=batch['sample_id'][0],
                                source_path=batch['source_path'][0], source_frame_ids=batch['frame_ids'][0].tolist(),
-                               seed=args.eval_seed + idx)
+                               seed=args.eval_seed + idx, sampling=dict(getattr(ema, 'last_eval_meta', {})))
                     rows.append(row)
         except Exception as exc:
             error = f'rank {self.rank}: {type(exc).__name__}: {exc}'
@@ -209,6 +209,9 @@ class PeriodicEvaluator:
                 scalars = {f'eval/{name}': value for name, value in report['mean'].items()}
                 scalars.update({'eval/num_videos': report['num_videos'],
                                 'eval/seconds': time.monotonic()-started, 'eval/latent_frames': self.frames})
+                effective = all_rows[0].get('sampling', {}).get('effective_steps')
+                if effective is not None:
+                    scalars['eval/effective_sampling_steps'] = effective
                 if wandb_run is not None:
                     # Explicit train_step avoids dropping eval values logged after train scalars at the same step.
                     wandb_run.log(dict(**progress_fields(args, global_step), **scalars))

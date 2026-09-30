@@ -491,3 +491,20 @@ Validation includes two consecutive synthetic training stages sharing a mocked
 W&B ID and continuous loss/evaluation steps, legacy-checkpoint offsets, the
 oracle reconstruction test, and real OS-process tests of successful and failed
 stage handoffs. No synthetic online runs are created.
+
+### Corrected fresh-run restart
+
+The user subsequently requested a fresh run with all fixes active from step0,
+superseding the live-handoff plan above. The old trainer and its handoff controller
+were stopped; no later stages will be attached to that old run. The replacement
+uses a fresh identity/output root, corrected reconstruction, and shared-run
+curriculum tracking from its first step. Old checkpoints/media remain unchanged.
+
+`train/recon_t_max` now records the same maximum timestep shown in the recon
+caption. Full-generation media records `train/gen_effective_sampling_steps`,
+and periodic evaluation records `eval/effective_sampling_steps`; per-video
+reports include the sampler's metadata. The existing pipeline caps effective
+steps at `inflight_chunks * ar_step`, so a configured100-step limit is not always
+100 executed updates. In the current stage1 eval (one in-flight chunk, stride5),
+the effective count is5. This change makes the existing protocol explicit;
+it does not change the scheduler, noise distribution or optimizer objective.

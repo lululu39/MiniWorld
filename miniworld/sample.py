@@ -458,7 +458,7 @@ def main() -> None:
                                   context_frames=rgb_context_frames(sample_history_len))
             row.update(sample_idx=idx, sample_id=batch['sample_id'][0],
                        source_path=batch['source_path'][0], source_frame_ids=batch['frame_ids'][0].tolist(),
-                       seed=args.seed + idx)
+                       seed=args.seed + idx, sampling=dict(getattr(denoiser, 'last_eval_meta', {})))
             metric_rows.append(row)
             print0(f"[Metrics] {row['sample_id']}: {row['mean']}")
 

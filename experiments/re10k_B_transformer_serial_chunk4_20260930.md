@@ -79,3 +79,12 @@ corrected from `z+(1-t)*v_pred` to `z+t*v_pred`, consistent with
 not optimization or generated-video metrics. The live stage1 retains the old
 visualization implementation; new stages use the correction. This version
 boundary is explicitly recorded in W&B metadata; old videos are not relabeled.
+
+## Fresh-restart request supersedes the handoff
+
+The user subsequently requested a wholly fresh corrected run. The handoff
+controller1642798 and old trainer were stopped on2026-09-30 at02:18 UTC.
+Last logged step3030; checkpoint2916 preserved. The continuation is cancelled,
+so stages2-4 will not be launched for this old run. See
+`experiments/re10k_B_serial_c4_corrected_20260930.md` for the replacement, which
+uses the reconstruction fix and single-run curriculum from step0.
