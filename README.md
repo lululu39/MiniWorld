@@ -402,11 +402,19 @@ and filtering touches no video files.
 
 ### Logging
 
-Training logs loss, learning rate, and throughput to
-[Weights & Biases](https://wandb.ai) on rank 0 every `--log_every` steps. Run
-`wandb login` once, then set `WANDB_PROJECT` to change the project (default
-`miniworld`); each curriculum stage becomes its own run, named after its output
-directory.
+Training logs loss, learning rate, and throughput on rank 0 every `--log_every`
+steps to [LVSM-Experiment/miniworld](https://wandb.ai/LVSM-Experiment/miniworld).
+Set `RUN_NAME` in the launchers (or `--wandb_name` in the CLI) for each experiment;
+curriculum stages have separate names under a common group. The scripts provide
+unique timestamp-based defaults. W&B initialization failures stop training;
+`--no-wandb` disables it and `--wandb_mode offline` writes local logs.
+
+Enable held-out EMA quality evaluation with `EVAL_EVERY=1000`, `EVAL_DATA_ROOT`,
+and `EVAL_POSE_DIR` for RE10K. It records `eval/psnr`, `eval/ssim`, `eval/lpips`
+on the `train_step` axis and saves per-video/frame JSON under the stage output's
+`eval/step_XXXXXXXX/`. The global default evaluation sample count is 8; evaluation
+is disabled when `EVAL_EVERY=0` (the default). See
+[periodic evaluation settings](REPRODUCING.md#periodic-held-out-evaluation-and-wb).
 
 Every `--image_log_every` steps (default 1000) rank 0 also logs two videos, each
 showing the ground truth beside the model output:

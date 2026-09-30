@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import copy
+from datetime import datetime, timezone
+import uuid
+import sys
 import os
 import random
 import subprocess
@@ -20,6 +23,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
+from miniworld.validation import add_validation_args, validate_options, due_for_evaluation, PeriodicEvaluator, gather_results
 from miniworld.backbones import add_backbone_args, backbone_config
 from miniworld.conditioning.actions import ConditioningConfig, build_cond_seq_for_batch
 from miniworld.data.droid import LeRobotActionDataset
@@ -207,30 +211,57 @@ def save_checkpoint(
     print0(f"[Checkpoint] saved {epoch_path}")
 
 
+def public_wandb_settings(wandb, mode="online"):
+    """Do not send an inherited private-host API key to the public W&B service."""
+    import netrc
+    settings = {'base_url': 'https://api.wandb.ai'}
+    inherited_host = os.environ.get('WANDB_BASE_URL', settings['base_url']).rstrip('/')
+    if mode == 'online' and inherited_host != settings['base_url'] and os.environ.get('WANDB_API_KEY'):
+        try:
+            credential = netrc.netrc().authenticators('api.wandb.ai')
+        except (OSError, netrc.NetrcParseError):
+            credential = None
+        if not credential:
+            raise RuntimeError('Inherited W&B credentials target another host; configure a public W&B login')
+        settings['api_key'] = credential[2]
+    return wandb.Settings(**settings)
+
+
 def init_wandb(args: argparse.Namespace, global_batch_size: int) -> Optional[Any]:
-    """Start a Weights & Biases run on the main rank.
-
-    Returns ``None`` when logging is disabled, the package is missing, or the
-    run cannot be created, so training never fails because of telemetry.
-    """
-    if not args.wandb or not is_main_process():
+    """Create one explicitly routed run; propagate rank-0 startup errors to DDP peers."""
+    if not args.wandb:
         return None
-    try:
-        import wandb
-    except ImportError:
-        print0("[W&B] wandb is not installed, skipping logging (pip install wandb)")
-        return None
-
-    # ``args.batch_size`` is per-rank because it goes straight to the DataLoader;
-    # record the effective DDP batch size instead.
-    config = vars(args).copy()
-    config["batch_size"] = global_batch_size
-    config["global_batch_size"] = global_batch_size
-    try:
-        return wandb.init(project=args.wandb_project, name=args.wandb_name, config=config)
-    except Exception as exc:  # noqa: BLE001 - never let logging break training
-        print0(f"[W&B] init failed ({exc}), continuing without logging")
-        return None
+    run, error = None, None
+    if is_main_process():
+        try:
+            import wandb
+            config = vars(args).copy()
+            config.update(batch_size=global_batch_size, global_batch_size=global_batch_size)
+            Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+            run = wandb.init(entity=args.wandb_entity, project=args.wandb_project,
+                             name=args.wandb_name, group=args.wandb_group, config=config,
+                             dir=args.output_dir, mode=args.wandb_mode,
+                             id=uuid.uuid4().hex, resume='never',
+                             settings=public_wandb_settings(wandb, args.wandb_mode))
+            run.define_metric('train_step')
+            run.define_metric('train/*', step_metric='train_step')
+            run.define_metric('eval/*', step_metric='train_step')
+            for metric, direction in [('psnr', 'max'), ('ssim', 'max'), ('lpips', 'min')]:
+                run.define_metric('eval/' + metric, step_metric='train_step', summary=direction)
+            import json
+            (Path(args.output_dir)/'wandb_run.json').write_text(json.dumps(
+                dict(entity=args.wandb_entity, project=args.wandb_project, name=args.wandb_name,
+                     id=run.id, url=run.url, mode=args.wandb_mode), indent=2)+'\n')
+            print0(f'[W&B] {args.wandb_entity}/{args.wandb_project}: {args.wandb_name} ({run.url})')
+        except Exception as exc:
+            error = f'{type(exc).__name__}: {exc}'
+            if run is not None:
+                run.finish(exit_code=1)
+    errors = gather_results(error)
+    if any(errors):
+        raise RuntimeError('W&B initialization failed; configure public credentials or use --no-wandb: '
+                           + '; '.join(e for e in errors if e))
+    return run
 
 
 def resolve_stream_chunks(latent_frames: int, chunk_size: int) -> tuple[int, int]:
@@ -316,6 +347,7 @@ def log_train_videos(
 
     wandb_run.log(
         {
+            "train_step": global_step,
             "train/recon_video": wandb.Video(
                 recon, fps=args.video_log_fps, format="mp4", caption=f"t={float(t_noise[0]):.4f}"
             ),
@@ -323,7 +355,6 @@ def log_train_videos(
                 generated, fps=args.video_log_fps, format="mp4", caption=f"step={global_step}"
             ),
         },
-        step=global_step,
     )
 
 
@@ -408,11 +439,13 @@ def parse_args() -> argparse.Namespace:
         "--wandb",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Log metrics to Weights & Biases. Falls back to stdout-only when "
-             "wandb is missing or a run cannot be started.",
+        help="Log to W&B; initialization errors stop training. --no-wandb disables logging.",
     )
+    parser.add_argument("--wandb_entity", default="LVSM-Experiment")
     parser.add_argument("--wandb_project", default="miniworld")
-    parser.add_argument("--wandb_name", default=None, help="Run name; defaults to the last two output_dir components.")
+    parser.add_argument("--wandb_group", default=None)
+    parser.add_argument("--wandb_mode", choices=['online', 'offline'], default='online')
+    parser.add_argument("--wandb_name", default=None, help="Custom run name; defaults to dataset/backbone/model/stage/seed plus a unique suffix.")
     parser.add_argument(
         "--image_log_every",
         type=int,
@@ -422,13 +455,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--video_log_fps", type=int, default=8, help="Frame rate of the videos logged to W&B.")
     parser.add_argument("--seed", type=int, default=42)
+    add_validation_args(parser)
     add_backbone_args(parser)
     args = parser.parse_args()
+    validate_options(args)
     if args.wandb_name is None:
-        # Curriculum stages share a parent dir, so the leaf alone ("stage1_lf6")
-        # collides across datasets and model scales.
-        out_dir = Path(args.output_dir).resolve()
-        args.wandb_name = f"{out_dir.parent.name}_{out_dir.name}" if out_dir.parent.name else out_dir.name
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')
+        args.wandb_name = (f'{args.dataset}_{args.backbone}_{args.wm_model}_lf{args.latent_frames}'
+                           f'_s{args.seed}_{stamp}_{uuid.uuid4().hex[:6]}')
     return args
 
 
@@ -450,6 +484,15 @@ def main() -> None:
     try:
         dataset = build_dataset(args, randomize=True, color_aug=True)
         resolve_conditioning(args, dataset)
+        evaluator, eval_setup_error = None, None
+        if args.eval_every:
+            try:
+                evaluator = PeriodicEvaluator(args, dataset, device)
+            except Exception as exc:
+                eval_setup_error = f'{type(exc).__name__}: {exc}'
+            setup_errors = gather_results(eval_setup_error)
+            if any(setup_errors):
+                raise RuntimeError('Evaluation setup failed: ' + '; '.join(e for e in setup_errors if e))
         sampler = DistributedSampler(dataset, shuffle=True, drop_last=True) if dist_info["distributed"] else None
         dataloader = DataLoader(
             dataset,
@@ -550,6 +593,7 @@ def main() -> None:
                     if wandb_run is not None:
                         wandb_run.log(
                             {
+                                "train_step": global_step,
                                 "train/loss": loss_value,
                                 "train/lr": current_lr,
                                 "train/step_per_sec": steps_per_sec,
@@ -558,7 +602,6 @@ def main() -> None:
                                 "train/sample_per_sec": steps_per_sec * global_batch_size,
                                 "epoch": int(epoch),
                             },
-                            step=global_step,
                         )
 
                 if log_videos and wandb_run is not None:
@@ -582,6 +625,11 @@ def main() -> None:
                         if torch.cuda.is_available():
                             torch.cuda.empty_cache()
 
+                if due_for_evaluation(global_step, args.eval_every):
+                    evaluator.run(ema_denoiser, vae, global_step, wandb_run)
+                    # Evaluation time must not lower the reported training throughput.
+                    last_log_time, last_log_step = time.time(), global_step
+
                 if args.max_train_steps > 0 and global_step >= args.max_train_steps:
                     save_checkpoint(
                         args=args,
@@ -604,7 +652,7 @@ def main() -> None:
                 )
     finally:
         if wandb_run is not None:
-            wandb_run.finish()
+            wandb_run.finish(exit_code=1 if sys.exc_info()[0] is not None else 0)
         cleanup_distributed(bool(dist_info["distributed"]))
 
 

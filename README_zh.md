@@ -375,7 +375,9 @@ bash scripts/train_re10k.sh
 
 ### 日志
 
-训练过程中，rank 0 每 `--log_every` 步会把 loss、学习率和吞吐记录到 [Weights & Biases](https://wandb.ai)。先执行一次 `wandb login`，然后用 `WANDB_PROJECT` 修改项目名（默认 `miniworld`）；每个课程阶段是一个独立的 run，以其输出目录命名。
+训练日志默认写入 [LVSM-Experiment/miniworld](https://wandb.ai/LVSM-Experiment/miniworld)。每次实验通过 `RUN_NAME`（或 CLI 的 `--wandb_name`）定义名称，各课程阶段使用独立 run 并归入同一 group。W&B 初始化失败会停止训练；可显式使用 `--no-wandb` 或 `--wandb_mode offline`。
+
+设置 `EVAL_EVERY=1000`、`EVAL_DATA_ROOT` 和 RE10K 的 `EVAL_POSE_DIR`，即可定期用 EMA 模型在固定 held-out 样本上评估 PSNR、SSIM、LPIPS，并写入 W&B 的 `eval/*`。默认全局评估 8 个视频，`EVAL_EVERY=0` 时关闭。详细参数见 [定期评估说明](REPRODUCING.md#periodic-held-out-evaluation-and-wb)。
 
 每 `--image_log_every` 步（默认 1000），rank 0 还会额外记录两段视频，都是真值与模型输出左右并排：
 

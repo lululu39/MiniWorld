@@ -19,7 +19,7 @@ FlashAttention 2.8.3 and an H100. The official FlashAttention wheel is pinned
 by URL to match Python/Torch/CUDA/C++ ABI; no local CUDA extension build is needed.
 Use `uv run --no-sync` after syncing to avoid reinstalling a wheel whose filename
 and distribution metadata use different version strings. `requirements.txt`
-is the original upstream installation list; `uv.lock` is the reproducible path.
+retains the legacy pip path with evaluation dependencies; `uv.lock` is the reproducible path.
 
 Known upstream packaging issue: decord 0.6.0's public `py3-none` wheel contains
 an internal `cp36-cp36m` WHEEL tag. `uv pip check` reports that one platform
@@ -113,12 +113,12 @@ this port adds the requested RTransformer and TaS, not a fourth LaCT backbone.
 
 Supply existing datasets and VAE weights; no downloads or real-data experiments
 are performed by the synthetic check. Commit and push the intended code first.
-Set the public W&B entity to the organization you intend to use (it is not
-inherited from LLM or LVSM), then verify authentication without printing keys:
+This repository defaults explicitly to public `LVSM-Experiment/miniworld`.
+Verify public authentication without printing keys:
 
 ```bash
 export WANDB_BASE_URL=https://api.wandb.ai
-export WANDB_ENTITY=YOUR_ENTITY
+export WANDB_ENTITY=LVSM-Experiment
 export WANDB_PROJECT=miniworld
 # uv run --no-sync wandb login --host https://api.wandb.ai
 
@@ -141,7 +141,7 @@ The trainer records a config snapshot, Git revision and lock SHA256; checkpoints
 include full arguments plus backbone metadata. Sampling restores the backbone
 configuration from the checkpoint. Older metadata-free backbone selections
 default to Transformer. Resume rejects conflicting recorded backbone settings.
-The normal sampling scripts also use uv. Synthetic checks never create W&B runs.
+The normal sampling scripts also use uv. Synthetic checks never create online W&B runs.
 
 ## Validation
 
@@ -203,8 +203,8 @@ These are documented metric choices, not a claim of exact numerical equivalence
 to MiniWorld's unpublished evaluation implementation. Scores are absolute, not
 the paper's normalized radar-chart ratios. LVSM's `eval/loss` combines pixel L2
 and optionally weighted LPIPS; MiniWorld's flow-matching loss is a different
-quantity. This addition does not change the training objective or add periodic
-validation to the training loop.
+quantity. These metrics do not change the training objective. Optional periodic training
+validation is described below.
 
 ### Evaluate while sampling a checkpoint
 
@@ -288,3 +288,93 @@ check with a simulated rollout and RGB-prefix exclusion. GPU0 FP32 metric
 execution inside BF16 autocast was also checked on real DROID/RE10K RGB clips
 with synthetic pixel noise; results are in ignored `outputs/metrics_smoke/`.
 This validates the metric pipeline, not a trained model's generation quality.
+
+
+## Periodic held-out evaluation and W&B
+
+`--eval_every N` runs quality evaluation after every N optimizer updates using
+EMA weights. Default0 disables it; `EVAL_EVERY=N` exposes it in both curriculum
+launchers. Evaluation runs independently of W&B and `image_log_every`, so
+`--no-wandb` still produces JSON reports. It evaluates complete autoregressive
+rollouts against held-out RGB targets, excluding the observed prefix.
+
+```bash
+source /mnt/localssd/dataset/miniworld_paths.env
+CUDA_VISIBLE_DEVICES=0 NPROC_PER_NODE=1 MODEL=B BACKBONE=transformer \
+RUN_NAME=re10k_B_transformer_s42_eval8 \
+DATA_ROOT="$RE10K_TRAIN_DATA_ROOT" POSE_DIR="$RE10K_TRAIN_POSE_DIR" \
+EVAL_DATA_ROOT="$RE10K_EVAL_DATA_ROOT" EVAL_POSE_DIR="$RE10K_EVAL_POSE_DIR" \
+EVAL_EVERY=1000 EVAL_NUM_VIDEOS=8 \
+EVAL_FILTER_CACHE_DIR="$RE10K_FILTER_CACHE_DIR" \
+VAE_CKPT=/path/to/Wan2.2_VAE.pth \
+OUTPUT_DIR=/path/to/experiments/re10k_B_transformer_s42_eval8 \
+STAGE1_BATCH_SIZE=1 STAGE2_BATCH_SIZE=1 STAGE3_BATCH_SIZE=1 STAGE4_BATCH_SIZE=1 \
+bash scripts/train_re10k.sh
+```
+
+For DROID set `DATA_ROOT="$DROID_TRAIN_DATA_ROOT"`,
+`EVAL_DATA_ROOT="$DROID_EVAL_DATA_ROOT"` and use `train_droid.sh` without pose
+paths. Use GPUs assigned to the experiment; these are launch examples, not
+experiments started by this change.
+
+| CLI | Launcher environment | Default |
+| --- | --- | --- |
+| `--eval_every` | `EVAL_EVERY` | 0 (disabled) |
+| `--eval_num_videos` | `EVAL_NUM_VIDEOS` | 8 globally |
+| `--eval_latent_frames` | `EVAL_LATENT_FRAMES` | 0: current stage length |
+| `--eval_seed` | `EVAL_SEED` | 42 |
+| `--eval_sampling_steps` | `EVAL_SAMPLING_STEPS` | 100 |
+| `--eval_cfg_scale` | `EVAL_CFG_SCALE` | 2 |
+| `--eval_ardiff_step` | `EVAL_ARDIFF_STEP` | 5 |
+| `--eval_history_len` | pass as CLI argument | 1 latent frame |
+| `--eval_lpips_net` | pass as CLI argument | vgg |
+| `--eval_metric_frame_batch_size` | pass as CLI argument | 4 |
+
+Eval paths must be explicit and the selected sample IDs must not overlap the
+training set. The first N eligible samples are fixed; too few samples is an
+error. Each sample uses eval_seed+sample_index for view selection and generation
+noise, unchanged across checkpoints. Python, NumPy and PyTorch RNG state and
+EMA modes/sampler settings are restored afterward. The sampling cache/in-flight
+window fits the current trained window; an explicit evaluation horizon can be
+longer. Default stage-dependent horizons produce different protocols between
+stages, so compare checkpoints at the same horizon or set a fixed override.
+
+For DDP, rank0 constructs the evaluation dataset once, then broadcasts it.
+Ranks evaluate disjoint indices `rank, rank+world_size, ...`, without duplicate
+padding when N is not divisible by GPU count. Results and errors are gathered
+on all ranks; rank0 alone writes reports and W&B. Training resumes only after
+the report completes. Evaluation and reporting failures stop all ranks rather
+than silently skipping evaluation. JSON reports are saved under
+`OUTPUT_DIR/eval/step_XXXXXXXX/`, including per-video scores, frame curves,
+protocol, seed, source IDs and step. Evaluation duration is excluded from the
+next training throughput interval.
+
+W&B defaults are fixed to **https://wandb.ai/LVSM-Experiment/miniworld**.
+The project was verified accessible using the existing public credential.
+An inherited private-host API key is not sent to the public host: online mode
+uses the existing `api.wandb.ai` netrc entry in that case, or fails with a setup
+error. Global credentials and settings are not modified.
+
+Give each experiment a descriptive `RUN_NAME`; the launchers append
+`_stageN_lfM` for distinct curriculum runs and use the base name as their group.
+Default output directories include the run name. Multi-node launchers require
+an explicit identical RUN_NAME across nodes. Direct CLI supports `--wandb_name`
+and `--wandb_group`; unnamed CLI runs get a unique dataset/backbone/model/length/
+seed/time suffix. New training sessions always create a fresh run ID, including
+checkpoint resume, so historical runs are not silently reused.
+
+The launchers ignore unrelated inherited W&B entity/project defaults. To
+explicitly override their target use `MINIWORLD_WANDB_ENTITY` /
+`MINIWORLD_WANDB_PROJECT`, or the CLI flags `--wandb_entity` / `--wandb_project`.
+Each stage writes `wandb_run.json` with its run ID, name, URL and mode. Scalars
+and training videos all use the explicit `train_step` chart axis; eval PSNR/SSIM
+also track their maximum and LPIPS its minimum in W&B summaries. The existing
+`train/gen_video` remains a training-sample visualization, separate from these
+held-out evaluation scores. W&B initialization failures no longer fall back
+silently. `--wandb_mode offline` needs no public authentication and does not
+create an online run; `--no-wandb` disables tracking entirely.
+
+Verified with a two-update synthetic training loop, actual offline W&B logging,
+and two-process CPU/Gloo evaluation with uneven sample counts and injected
+rank failure. Together with backbone/metric checks, 40 tests pass. This does not
+constitute a full GPU/DDP real-data training or online W&B run.

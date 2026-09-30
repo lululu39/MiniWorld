@@ -10,3 +10,8 @@ Pillow
 wandb
 # Required by wandb.Video for mp4 encoding.
 moviepy
+
+# Quality evaluation and the existing torchvision MP4 writer.
+lpips==0.1.4
+pytorch-msssim==1.0.0
+av==14.2.0

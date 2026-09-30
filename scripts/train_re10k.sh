@@ -14,8 +14,15 @@ POSE_DIR="${POSE_DIR:?Set POSE_DIR to the RealEstate10K pose tensor root}"
 VAE_CKPT="${VAE_CKPT:?Set VAE_CKPT to Wan2.2_VAE.pth}"
 # Optional: caches the per-video length scan so later stages and reruns skip it.
 FILTER_CACHE_DIR="${FILTER_CACHE_DIR:-}"
-OUTPUT_DIR="${OUTPUT_DIR:-${REPO_DIR}/outputs/re10k_${BACKBONE}_${MODEL}}"
-WANDB_PROJECT="${WANDB_PROJECT:-miniworld}"
+if [[ "${NNODES:-${ARNOLD_WORKER_NUM:-1}}" -gt 1 && -z "${RUN_NAME:-}" ]]; then
+  echo "Set the same RUN_NAME on every node for a multi-node curriculum." >&2
+  exit 2
+fi
+RUN_NAME="${RUN_NAME:-re10k_${BACKBONE}_${MODEL}_$(date -u +%Y%m%dT%H%M%S)}"
+OUTPUT_DIR="${OUTPUT_DIR:-${REPO_DIR}/outputs/${RUN_NAME}}"
+WANDB_PROJECT="${MINIWORLD_WANDB_PROJECT:-miniworld}"
+WANDB_ENTITY="${MINIWORLD_WANDB_ENTITY:-LVSM-Experiment}"
+EVAL_EVERY="${EVAL_EVERY:-0}"
 
 STAGE1_LATENT_FRAMES="${STAGE1_LATENT_FRAMES:-6}"
 STAGE2_LATENT_FRAMES="${STAGE2_LATENT_FRAMES:-16}"
@@ -56,10 +63,30 @@ COMMON_ARGS=(
   --mixed_precision bf16
   --use_muon
   --wandb_project "${WANDB_PROJECT}"
+  --wandb_entity "${WANDB_ENTITY}"
+  --wandb_group "${RUN_NAME}"
+  --eval_every "${EVAL_EVERY}"
+  --eval_num_videos "${EVAL_NUM_VIDEOS:-8}"
+  --eval_latent_frames "${EVAL_LATENT_FRAMES:-0}"
+  --eval_seed "${EVAL_SEED:-42}"
+  --eval_sampling_steps "${EVAL_SAMPLING_STEPS:-100}"
+  --eval_cfg_scale "${EVAL_CFG_SCALE:-2.0}"
+  --eval_ardiff_step "${EVAL_ARDIFF_STEP:-5}"
 )
 
 if [[ -n "${FILTER_CACHE_DIR}" ]]; then
   COMMON_ARGS+=(--dataset_filter_cache_dir "${FILTER_CACHE_DIR}")
+fi
+
+# Held-out paths are explicit; evaluation stays disabled until EVAL_EVERY > 0.
+if [[ -n "${EVAL_DATA_ROOT:-}" ]]; then
+  COMMON_ARGS+=(--eval_data_root "${EVAL_DATA_ROOT}")
+fi
+if [[ -n "${EVAL_POSE_DIR:-}" ]]; then
+  COMMON_ARGS+=(--eval_pose_dir "${EVAL_POSE_DIR}")
+fi
+if [[ -n "${EVAL_FILTER_CACHE_DIR:-}" ]]; then
+  COMMON_ARGS+=(--eval_filter_cache_dir "${EVAL_FILTER_CACHE_DIR}")
 fi
 
 # Optional model/experiment flags, forwarded to each curriculum stage.
@@ -71,6 +98,7 @@ echo "Stage 1/4: latent_frames=${STAGE1_LATENT_FRAMES}, batch=${STAGE1_BATCH_SIZ
   --batch_size "${STAGE1_BATCH_SIZE}" \
   --max_epochs "${STAGE1_EPOCHS}" \
   --lr 1e-4 \
+  --wandb_name "${RUN_NAME}_stage1_lf${STAGE1_LATENT_FRAMES}" \
   --output_dir "${OUTPUT_DIR}/stage1_lf${STAGE1_LATENT_FRAMES}"
 
 STAGE1_CKPT="${OUTPUT_DIR}/stage1_lf${STAGE1_LATENT_FRAMES}/last.pt"
@@ -82,6 +110,7 @@ echo "Stage 2/4: latent_frames=${STAGE2_LATENT_FRAMES}, batch=${STAGE2_BATCH_SIZ
   --max_epochs "${STAGE2_EPOCHS}" \
   --lr 2e-5 \
   --load_pretrained "${STAGE1_CKPT}" \
+  --wandb_name "${RUN_NAME}_stage2_lf${STAGE2_LATENT_FRAMES}" \
   --output_dir "${OUTPUT_DIR}/stage2_lf${STAGE2_LATENT_FRAMES}"
 
 STAGE2_CKPT="${OUTPUT_DIR}/stage2_lf${STAGE2_LATENT_FRAMES}/last.pt"
@@ -93,6 +122,7 @@ echo "Stage 3/4: latent_frames=${STAGE3_LATENT_FRAMES}, batch=${STAGE3_BATCH_SIZ
   --max_train_steps "${STAGE3_MAX_TRAIN_STEPS}" \
   --lr 2e-5 \
   --load_pretrained "${STAGE2_CKPT}" \
+  --wandb_name "${RUN_NAME}_stage3_lf${STAGE3_LATENT_FRAMES}" \
   --output_dir "${OUTPUT_DIR}/stage3_lf${STAGE3_LATENT_FRAMES}"
 
 STAGE3_CKPT="${OUTPUT_DIR}/stage3_lf${STAGE3_LATENT_FRAMES}/last.pt"
@@ -104,6 +134,7 @@ echo "Stage 4/4: latent_frames=${STAGE4_LATENT_FRAMES}, batch=${STAGE4_BATCH_SIZ
   --max_train_steps "${STAGE4_MAX_TRAIN_STEPS}" \
   --lr 2e-5 \
   --load_pretrained "${STAGE3_CKPT}" \
+  --wandb_name "${RUN_NAME}_stage4_lf${STAGE4_LATENT_FRAMES}" \
   --output_dir "${OUTPUT_DIR}/stage4_lf${STAGE4_LATENT_FRAMES}"
 
 echo "Done: ${OUTPUT_DIR}/stage4_lf${STAGE4_LATENT_FRAMES}/last.pt"

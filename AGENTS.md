@@ -48,11 +48,17 @@ local; do not copy unrelated LLM evaluations, LVSM datasets or machine setup.
 - Record the command/config, Git revision, dependency lock, seed, precision,
   backbone, memory configuration, video/chunk lengths, batch size, GPU allocation,
   checkpoint and W&B URL in a run record under `experiments/` for real experiments.
-- Public W&B host: `https://api.wandb.ai`; project: `miniworld`. Set
-  `WANDB_ENTITY` explicitly for real runs; do not inherit another project's
-  organization or silently redirect credentials. Keep keys in private netrc or
-  environment variables. Do not print them or copy them into run records.
-- Use unique run/output names for comparisons. Read historical runs without
-  mutating them. Synthetic checks use no W&B run; real training logs on rank 0.
-  Verify the intended W&B run actually started (the inherited trainer tolerates
-  logging failures). Do not report unlogged work as a tracked experiment.
+- Public W&B defaults: `WANDB_BASE_URL=https://api.wandb.ai`, entity
+  `LVSM-Experiment`, project `miniworld`:
+  https://wandb.ai/LVSM-Experiment/miniworld. Keep API keys in private netrc or
+  environment variables; never print them or copy them into run records.
+- Define a descriptive run name for each experiment (`RUN_NAME` in launchers,
+  `--wandb_name` in the CLI). The four curriculum stages use separate run names
+  under one group. Use unique output directories; do not reuse historical run IDs.
+- Enable periodic held-out EMA evaluation with `--eval_every` and explicit eval
+  data/pose paths. Use fixed sample IDs, noise seeds and protocol when comparing
+  checkpoints. Keep PSNR/SSIM/LPIPS in `eval/*` and use `train_step` as the W&B
+  chart axis. Evaluation must preserve training RNG state and synchronize ranks.
+- Synthetic checks use offline W&B or mocks; never populate the real project
+  with test runs. W&B startup failures stop training unless `--no-wandb` was
+  explicitly selected. Read historical runs without mutating them.
