@@ -67,3 +67,14 @@ there is no deferred launch left attached to that run.
   `7a79e838806250bcb9329ad47251c45ec61940c406f34d4e9e9763b216a9d49e`).
   The user prefers reusing the main checkout's uv environment for future starts;
   this preference does not require interrupting the active process.
+
+## Flow Matching audit follow-up
+
+The later formula audit confirmed the training objective/integration sign and
+found a separate completed-chunk time-label issue in multi-inflight sampling.
+See `experiments/flow_matching_audit_20260930.md`. The current single-inflight
+stage1 is unaffected and continues without restart. After its normal completion,
+stages2-4 will use audited revision`8a99f40` through a controlled handoff, retaining
+the same run ID, hyperparameters, checkpoints and continuous step axis. The
+continuation reuses the main checkout's `.venv`; details and process identities
+are in `flow_audit_handoff.json` and `continuation_status.json` under this run.

@@ -123,3 +123,19 @@ completion, a controlled handoff runs stages2-4 from the audited source, reusing
 `/data/yibo/MiniWorld/.venv` and the existing shared W&B run. Runtime handoff status,
 process identities and exact code revision are recorded under the experiment
 output root. No source file is hot-patched in the active Python processes.
+
+### Deployment record
+
+The audited continuation is pinned to
+`8a99f4001c8e552040d8a108e68b28a51a0d5c82` in the active output root's
+`flow_audited_source/`. Import checks confirm Python environment
+`/data/yibo/MiniWorld/.venv` and source modules from that audited checkout;
+no additional uv environment was created. A dry-run of the continuation launcher
+confirmed it starts only stages2/3/4 and retains the shared W&B identity file.
+
+At2026-09-30 03:05:38 UTC, controller836690 entered `waiting_for_stage1`, watching
+stage1 foreground process1853846. Only shell supervisor1853839 is paused.
+All8 GPUs remained active and stage1 logs continued with finite loss through
+step2890 at the verification snapshot. Handoff metadata is in the active run's
+`flow_audit_handoff.json`, `continuation_status.json` and `launcher.json`.
+The existing shared run ID remains `08731ad6239140c1a8fcf27bef94914f`.
