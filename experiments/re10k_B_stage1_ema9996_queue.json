@@ -129,5 +129,34 @@
   "initialization": "scratch",
   "updates_per_model": 24300,
   "ema_decay": 0.9996,
-  "supersedes_queue": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z"
+  "supersedes_queue": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_s42_20260930T051012Z",
+  "launch": {
+    "pid": 2747855,
+    "revision": "2a2d279aac2ebf109acfe3518d004ad7c48d9271",
+    "source": "/mnt/localssd/experiments/yibo/miniworld/re10k_B_stage1_queue_b32_c4_ema9996_s42_20260930T133541Z/source",
+    "gpus": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "started_at": 1790775393.7468379,
+    "ema_decay": 0.9996
+  },
+  "wandb_runs": {
+    "transformer": {
+      "entity": "LVSM-Experiment",
+      "project": "miniworld",
+      "name": "re10k_B_transformer_serial_c4_b32_ema9996_s42_20260930T133541Z_stage1",
+      "id": "9959da979b2e4c87968f2b70f753dce2",
+      "url": "https://wandb.ai/LVSM-Experiment/miniworld/runs/9959da979b2e4c87968f2b70f753dce2",
+      "mode": "online",
+      "curriculum_stage": 1,
+      "wandb_stage_mode": "separate"
+    }
+  }
 }
