@@ -36,7 +36,7 @@ names and checkpoint layout are preserved. No neighboring repo is needed at runt
 
 | Backbone | Video attention / state |
 | --- | --- |
-| Transformer | Existing block-causal DiT, bidirectional within latent chunks; per-layer history KV |
+| Transformer | Serial block-causal DiT with per-layer history KV; `--transformer_execution parallel` retains the legacy full-clip reference |
 | RTransformer | Same DiT; chunks traverse all layers sequentially. Older history uses final-layer KV; the immediately preceding chunk blends own/final-layer KV with a learned per-head sigmoid initialized at 0.5 |
 | TaS | Same DiT plus serial slot reads; bounded preceding raw-video history plus the current bidirectional chunk; fixed learned token banks updated after each layer sweep |
 
@@ -378,3 +378,64 @@ Verified with a two-update synthetic training loop, actual offline W&B logging,
 and two-process CPU/Gloo evaluation with uneven sample counts and injected
 rank failure. Together with backbone/metric checks, 40 tests pass. This does not
 constitute a full GPU/DDP real-data training or online W&B run.
+
+
+## Serial execution and chunk4 research protocol
+
+User update2026-09-30: new Transformer, RTransformer and TaS comparisons all use
+serial chunk processing with **4 latent frames =1200 tokens per chunk** at
+240x320 resolution. Transformer uses the same chunk-outer/layer-inner loop as
+the other two models while retaining its own layer's historical KV. It has no
+extra parameters, memory bank or cross-layer KV blending. Gradients remain
+attached through all earlier chunks; one optimizer update follows the complete
+video batch. Optional `--transformer_execution parallel` preserves the original
+full-clip masked Transformer reference.
+
+With the same chunk size and weights, the two Transformer execution modes are
+mathematically equivalent. CPU tests compare outputs, input gradients and every
+parameter gradient for action/pose conditions, full/partial chunks and activation
+checkpointing. Finite-precision CUDA kernels can introduce rounding differences.
+The default trainer remains eager with activation checkpointing; fullgraph
+compilation is validated in the smoke script, not implicitly enabled for runs.
+
+The official [paper](https://arxiv.org/html/2608.01127#S4.SS1) and
+[upstream launcher](https://github.com/Zhao-Yian/MiniWorld/blob/master/scripts/train_re10k.sh)
+use chunk2. No official large-chunk preset was found in those sources. Chunk4 is
+our research setting, not an established convergence result from the paper.
+
+| Stage | Latent / RGB frames | Chunks/video | Batch/GPU | Update budget on downloaded RE10K |
+| --- | --- | --- | --- | --- |
+| 1 | 8 / 29 | 2 | 8 | 97200 steps (100 epochs) |
+| 2 | 16 / 61 | 4 | 4 | 86950 steps (50 epochs) |
+| 3 | 32 / 125 | 8 | 1 | 30000 steps |
+| 4 | 64 / 253 | 16 | 1 | 30000 steps |
+
+Total244150 optimizer updates on8 GPUs. Stage1 has62244 eligible training clips;
+all later stage budgets and the default learning rates are retained. Two complete
+chunks in stage1 allow one effective recurrent memory transition and leave room
+for one committed-history chunk plus one in-flight chunk during evaluation.
+Increasing chunk size changes block-causal visibility, noise grouping, automatic
+timestep shift and update frequency; it is not just a performance switch.
+Short-video convergence under the new protocol needs real training evidence.
+TaS defaults remain256 slots with4 latent frames of preceding raw KV; matching
+chunk size does not change the architectural distinction in retained history.
+
+Launchers accept `DF_CHUNK_SIZE` (default4) and `TRANSFORMER_EXECUTION` (default
+serial). They start from8 latent frames by default. Explicitly set chunk2,
+first-stage6 and parallel Transformer to reproduce the original baseline, or
+use its recorded immutable checkout. New recurrent training rejects clips with
+only one chunk because cross-chunk state parameters would receive no outer-loss
+gradient. Checkpoint loading rejects a recorded chunk-size mismatch.
+
+Sampling automatically restores the recorded chunk size and Transformer execution
+mode. Historical checkpoints without execution metadata use parallel Transformer
+and legacy chunk2. The default streaming cache/in-flight counts adapt to the
+checkpoint's trained window and chunk size:64 latent frames with chunk4 use
+12 cached +4 in-flight chunks; stage1 uses1+1. Explicit inference overrides remain
+available but must fit the trained window. Previously published checkpoints are
+not silently reinterpreted as chunk4 models.
+
+Validation:55 relevant tests pass; all three serial backbones pass BF16 forward,
+backward, optimizer update and fullgraph Inductor compilation at chunk4. The
+synthetic compile results are in ignored `outputs/serial_chunk4_smoke.json`.
+No convergence or throughput equivalence is inferred from these checks.

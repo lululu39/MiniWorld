@@ -2,7 +2,7 @@
 import argparse
 
 BACKBONE_DEFAULTS = dict(
-    backbone='transformer', num_memory_tokens=256, memory_window_frames=4,
+    backbone='transformer', transformer_execution='serial', num_memory_tokens=256, memory_window_frames=4,
     slot_embed=True, gated_ema=True, write_from_last=True,
     state_sharing=True, assigned_write=True,
 )
@@ -10,6 +10,8 @@ BACKBONE_DEFAULTS = dict(
 
 def add_backbone_args(parser):
     parser.add_argument('--backbone', choices=['transformer', 'rtransformer', 'tas'], default='transformer')
+    parser.add_argument('--transformer_execution', choices=['serial', 'parallel'], default='serial',
+                        help='Transformer training execution; serial shares the recurrent chunk loop')
     parser.add_argument('--num_memory_tokens', type=int, default=256)
     parser.add_argument('--memory_window_frames', type=int, default=4,
                         help='TaS history in latent frames, in addition to the current bidirectional chunk')
@@ -25,7 +27,8 @@ def build_video_model(size, cfg, **kwargs):
     from miniworld.miniworld import MiniWorldModels
     config = backbone_config(cfg)
     backbone = config.pop('backbone')
-    if backbone == 'transformer':
+    execution = config.pop('transformer_execution')
+    if backbone == 'transformer' and execution == 'parallel':
         return MiniWorldModels[size](**kwargs)
     from miniworld.recurrent import RecurrentMiniWorldModel
     return MiniWorldModels[size](_model_class=RecurrentMiniWorldModel,

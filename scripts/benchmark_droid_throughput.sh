@@ -14,7 +14,12 @@ VAE_CKPT="${VAE_CKPT:?Set VAE_CKPT to Wan2.2_VAE.pth}"
 SAMPLE_DIR="${SAMPLE_DIR:-${REPO_DIR}/throughput/droid_${MODEL}}"
 GPU="${GPU:-0}"
 
-CUDA_VISIBLE_DEVICES="${GPU}" uv run --no-sync python -m miniworld.sample \
+STREAM_ARGS=()
+if [[ -n "${DF_CHUNK_SIZE:-}" ]]; then STREAM_ARGS+=(--df_chunk_size "${DF_CHUNK_SIZE}"); fi
+if [[ -n "${STREAM_INFLIGHT_CHUNKS:-}" ]]; then STREAM_ARGS+=(--stream_inflight_chunks "${STREAM_INFLIGHT_CHUNKS}"); fi
+if [[ -n "${STREAM_MAX_CACHE_CHUNKS:-}" ]]; then STREAM_ARGS+=(--stream_max_cache_chunks "${STREAM_MAX_CACHE_CHUNKS}"); fi
+
+CUDA_VISIBLE_DEVICES="${GPU}" uv run --no-sync python -m miniworld.sample "${STREAM_ARGS[@]}" \
   --dataset droid \
   --data_root "${DATA_ROOT}" \
   --checkpoint "${CKPT}" \
@@ -22,10 +27,7 @@ CUDA_VISIBLE_DEVICES="${GPU}" uv run --no-sync python -m miniworld.sample \
   --sample_dir "${SAMPLE_DIR}" \
   --wm_model "${MODEL}" \
   --total_len "${TOTAL_LEN:-96}" \
-  --df_chunk_size 2 \
   --df_ardiff_step "${DF_ARDIFF_STEP:-5}" \
-  --stream_inflight_chunks "${STREAM_INFLIGHT_CHUNKS:-8}" \
-  --stream_max_cache_chunks "${STREAM_MAX_CACHE_CHUNKS:-24}" \
   --stream_sink_size "${STREAM_SINK_SIZE:-1}" \
   --cfg_scale 1.0 \
   --num_sampling_steps "${NUM_SAMPLING_STEPS:-100}" \

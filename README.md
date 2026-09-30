@@ -300,7 +300,7 @@ The public launchers implement the paper's short- and long-horizon continued-tra
 
 | Stage | Latent frames | Default batch/GPU | Duration | Learning rate | Initialization |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 1 | 6 | 8 | 100 epochs | `1e-4` | From scratch |
+| 1 | 8 | 8 | 100 epochs | `1e-4` | From scratch |
 | 2 | 16 | 4 | 50 epochs | `2e-5` | Stage 1 |
 | 3 | 32 | 1 | 30k steps | `2e-5` | Stage 2 |
 | 4 | 64 | 1 | 30k steps | `2e-5` | Stage 3 |
@@ -310,7 +310,10 @@ the long-context stages run for a fixed number of optimizer steps
 (`STAGE3_MAX_TRAIN_STEPS`, `STAGE4_MAX_TRAIN_STEPS`) so their cost does not scale
 with dataset size.
 
-All stages use 240×320 videos, a latent chunk size of 2, bf16 mixed precision, and the Muon optimizer.
+All stages use 240×320 videos, a latent chunk size of 4, bf16 mixed precision, and the Muon optimizer.
+
+The current research defaults use serial execution for all backbones, chunk4, and 8/16/32/64 latent-frame stages (29/61/125/253 RGB frames). These differ from the upstream chunk2, first-stage6 recipe. See [serial protocol](REPRODUCING.md#serial-execution-and-chunk4-research-protocol).
+
 
 ### Train on DROID
 

@@ -153,6 +153,29 @@ def resolve_wm_model(meta: Dict[str, object], args: argparse.Namespace) -> str:
     return recorded
 
 
+def restore_execution_config(meta, args):
+    """Keep historical checkpoints on their recorded execution/chunk protocol."""
+    for key, default in BACKBONE_DEFAULTS.items():
+        if key == 'transformer_execution':
+            default = 'parallel'
+        setattr(args, key, meta.get(key, default))
+    if args.df_chunk_size is None:
+        args.df_chunk_size = int(meta.get('df_chunk_size', 2))
+    if args.df_chunk_size < 1:
+        raise ValueError('df_chunk_size must be positive')
+    window_chunks = args.latent_frames // args.df_chunk_size
+    if window_chunks < 1:
+        raise ValueError('Checkpoint trained window is shorter than one chunk')
+    if args.stream_inflight_chunks is None:
+        args.stream_inflight_chunks = max(1, window_chunks // 4)
+    if args.stream_max_cache_chunks is None:
+        args.stream_max_cache_chunks = window_chunks - args.stream_inflight_chunks
+    if args.stream_inflight_chunks < 1 or args.stream_max_cache_chunks < 0:
+        raise ValueError('Invalid streaming cache/inflight configuration')
+    if args.stream_inflight_chunks + args.stream_max_cache_chunks > window_chunks:
+        raise ValueError('Streaming cache plus inflight chunks exceed the trained window')
+
+
 def load_weights(weights: Dict[str, torch.Tensor], denoiser: torch.nn.Module) -> None:
     """Load EMA weights into the denoiser."""
     denoiser.load_state_dict(weights, strict=True)
@@ -294,7 +317,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--wm_use_checkpoint", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--wm_adaln_mode", dest="adaln_mode", choices=["adaln_lora", "fully_shared", "per_block"], default="adaln_lora")
     parser.add_argument("--wm_cond_dropout_prob", dest="cond_dropout_prob", type=float, default=0.1)
-    parser.add_argument("--df_chunk_size", type=int, default=2)
+    parser.add_argument("--df_chunk_size", type=int, default=None, help="Default: recorded checkpoint chunk size; legacy fallback2")
     parser.add_argument("--df_ardiff_step", type=int, default=5)
     parser.add_argument(
         "--timestep_baseshift",
@@ -313,8 +336,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cfg_scale", type=float, default=2.0)
     parser.add_argument("--cfg_interval_min", type=float, default=0.2)
     parser.add_argument("--cfg_interval_max", type=float, default=1.0)
-    parser.add_argument("--stream_inflight_chunks", type=int, default=8)
-    parser.add_argument("--stream_max_cache_chunks", type=int, default=24)
+    parser.add_argument("--stream_inflight_chunks", type=int, default=None)
+    parser.add_argument("--stream_max_cache_chunks", type=int, default=None)
     parser.add_argument("--stream_sink_size", type=int, default=1)
     parser.add_argument("--save_fps", type=int, default=8)
     parser.add_argument("--benchmark_stream_timing", action="store_true")
@@ -360,8 +383,7 @@ def main() -> None:
     weights, meta = read_checkpoint(args.checkpoint)
     args.latent_frames = resolve_latent_frames(weights, meta, args)
     args.wm_model = resolve_wm_model(meta, args)
-    for key, default in BACKBONE_DEFAULTS.items():
-        setattr(args, key, meta.get(key, default))
+    restore_execution_config(meta, args)
     print0(f"[Checkpoint] {args.checkpoint}: wm_model={args.wm_model}, latent_frames={args.latent_frames}")
     denoiser = build_denoiser(args).to(device).eval()
     load_weights(weights, denoiser)

@@ -99,7 +99,7 @@ class DenoiserConfig:
         self.cfg_interval_min: float = 0.1
         self.cfg_interval_max: float = 1.0
 
-        self.df_chunk_size: int = 2
+        self.df_chunk_size: int = 4
         self.df_train_time_bins: int = 50
         self.df_ardiff_step: int = 1
 

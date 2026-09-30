@@ -10,7 +10,7 @@ from miniworld.denoiser import DiffusionForcingDenoiser as Denoiser, DenoiserCon
 def model(kind, pose=False, **kwargs):
     torch.manual_seed(7)
     cls = MiniWorldModel if kind == 'transformer' else RecurrentMiniWorldModel
-    extra = {} if kind == 'transformer' else dict(backbone=kind, num_memory_tokens=8)
+    extra = {} if kind == 'transformer' else dict(backbone='transformer' if kind == 'serial_transformer' else kind, num_memory_tokens=8)
     net = cls(in_channels=4, hidden_size=64, cond_dim=6, depth=2, num_heads=2,
               patch_size=1, input_size=2, num_frames=6, adaln_lora_dim=8,
               cond_per_token=pose, **extra, **kwargs)
@@ -55,7 +55,7 @@ def test_causal_stream_and_gradient(kind, pose):
         assert net.blocks[0].attn.prev_chunk_alpha.grad.abs().sum() > 0
 
 
-@pytest.mark.parametrize('kind', ['rtransformer', 'tas'])
+@pytest.mark.parametrize('kind', ['serial_transformer', 'rtransformer', 'tas'])
 def test_checkpoint_gradients_and_no_cache_mutation(kind):
     net = model(kind)
     checked = copy.deepcopy(net); checked.use_checkpoint = True
@@ -99,7 +99,8 @@ def test_tas_switches(feature):
 
 @pytest.mark.parametrize('kind', ['transformer', 'rtransformer', 'tas'])
 @pytest.mark.parametrize('history', [1, 4])
-def test_actual_streaming_denoiser(kind, history, monkeypatch):
+@pytest.mark.parametrize('chunk', [2, 4])
+def test_actual_streaming_denoiser(kind, history, chunk, monkeypatch):
     from miniworld.miniworld import MiniWorldModels
     # Exercise the real Denoiser construction and sampler with a tiny model.
     def tiny(**kwargs):
@@ -107,19 +108,19 @@ def test_actual_streaming_denoiser(kind, history, monkeypatch):
         return cls(depth=2, hidden_size=64, num_heads=2, patch_size=1, adaln_lora_dim=8, **kwargs)
     monkeypatch.setitem(MiniWorldModels, 'tiny', tiny)
     cfg = DenoiserConfig(wm_model='tiny', backbone=kind, latent_size=2, latent_channels=4,
-                        latent_frames=8, trained_num_frames=8, cond_dim=6, num_memory_tokens=8,
-                        num_sampling_steps=2, cfg_scale=2, cond_dropout_prob=.1, df_chunk_size=2,
+                        latent_frames=4*chunk, trained_num_frames=4*chunk, cond_dim=6, num_memory_tokens=8,
+                        num_sampling_steps=2, cfg_scale=2, cond_dropout_prob=.1, df_chunk_size=chunk,
                         wm_use_checkpoint=False)
     d = Denoiser(cfg).eval()
     torch.nn.init.normal_(d.net.final_layer.linear.weight, std=.03)
-    x = torch.randn(1, 4, 12, 2, 2)
-    cond = torch.randn(1, 12, 6)
+    x = torch.randn(1, 4, 6*chunk, 2, 2)
+    cond = torch.randn(1, 6*chunk, 6)
     if history == 1:
-        loss = d(x[:, :, :8], cond[:, :8])
+        loss = d(x[:, :, :4*chunk], cond[:, :4*chunk])
         loss.backward()
         assert torch.isfinite(loss)
         assert d.net.final_layer.linear.weight.grad.abs().sum() > 0
-    out = d.generate_eval_latents_streaming(x, cond, 12, history_len=history,
+    out = d.generate_eval_latents_streaming(x, cond, 6*chunk, history_len=history,
                    max_cache_chunks=2, inflight_chunks=2, sink_frames=1)
     assert out.shape == x.shape and torch.isfinite(out).all()
     torch.testing.assert_close(out[:, :, :history], x[:, :, :history])
@@ -150,3 +151,54 @@ def test_checkpoint_backbone_metadata(kind, tmp_path, monkeypatch):
     restored.cfg.backbone = 'tas' if kind != 'tas' else 'transformer'
     with pytest.raises(ValueError, match='backbone configuration'):
         load_pretrained(str(tmp_path/'last.pt'), restored, copy.deepcopy(restored))
+
+
+@pytest.mark.parametrize('pose', [False, True])
+@pytest.mark.parametrize('chunk_size', [2, 4, 6])
+def test_serial_transformer_matches_parallel_outputs_and_gradients(pose, chunk_size):
+    parallel = model('transformer', pose)
+    serial = model('serial_transformer', pose, use_checkpoint=True)
+    assert set(serial.state_dict()) == set(parallel.state_dict())
+    x, t, y = inputs(pose)
+    outputs=[]
+    grads=[]
+    for net in (parallel, serial):
+        z=x.clone().requires_grad_()
+        output=net(z,t,y,temporal_causal=True,chunk_size=chunk_size)
+        output.square().mean().backward()
+        outputs.append(output.detach());grads.append(z.grad)
+    torch.testing.assert_close(outputs[0],outputs[1],atol=2e-6,rtol=2e-5)
+    torch.testing.assert_close(grads[0],grads[1],atol=2e-6,rtol=2e-4)
+    for (name,p),(other,q) in zip(parallel.named_parameters(),serial.named_parameters()):
+        assert name==other
+        assert (p.grad is None)==(q.grad is None)
+        if p.grad is not None:
+            torch.testing.assert_close(p.grad,q.grad,atol=2e-6,rtol=2e-4,msg=name)
+
+
+def test_transformer_factory_selects_serial_by_default(monkeypatch):
+    from miniworld.backbones import build_video_model
+    from miniworld.miniworld import MiniWorldModels
+    def tiny(**kwargs):
+        cls=kwargs.pop('_model_class',MiniWorldModel)
+        return cls(depth=2,hidden_size=64,num_heads=2,patch_size=1,**kwargs)
+    monkeypatch.setitem(MiniWorldModels,'tiny',tiny)
+    kwargs=dict(in_channels=4,cond_dim=6,input_size=2,num_frames=6)
+    serial=build_video_model('tiny',DenoiserConfig(),**kwargs)
+    parallel=build_video_model('tiny',DenoiserConfig(transformer_execution='parallel'),**kwargs)
+    assert isinstance(serial,RecurrentMiniWorldModel) and serial.backbone=='transformer'
+    assert type(parallel) is MiniWorldModel
+    parallel.load_state_dict(serial.state_dict(),strict=True)
+
+
+def test_sampling_restores_chunk_and_legacy_execution():
+    from argparse import Namespace
+    from miniworld.sample import restore_execution_config
+    def args(frames):
+        return Namespace(df_chunk_size=None, latent_frames=frames, stream_inflight_chunks=None, stream_max_cache_chunks=None)
+    old=args(64);restore_execution_config({},old)
+    assert (old.transformer_execution,old.df_chunk_size,old.stream_inflight_chunks,old.stream_max_cache_chunks)==('parallel',2,8,24)
+    new=args(64);restore_execution_config({'transformer_execution':'serial','df_chunk_size':4},new)
+    assert (new.transformer_execution,new.df_chunk_size,new.stream_inflight_chunks,new.stream_max_cache_chunks)==('serial',4,4,12)
+    short=args(8);restore_execution_config({'transformer_execution':'serial','df_chunk_size':4},short)
+    assert (short.stream_inflight_chunks,short.stream_max_cache_chunks)==(1,1)

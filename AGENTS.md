@@ -37,7 +37,14 @@ local; do not copy unrelated LLM evaluations, LVSM datasets or machine setup.
 - Preserve the MiniWorld recipe unless an experiment explicitly changes it:
   latent video chunks, block-causal attention, 3D RoPE, action/pose conditioning,
   rectified-flow objective, and separate conditional/unconditional streaming state.
-- Transformer is the existing baseline. RTransformer uses top-layer historical
+- All new comparisons use serial chunk execution. Transformer retains its own
+  per-layer historical KV; `--transformer_execution parallel` is the legacy
+  equivalent reference. Use the same chunk size across all three backbones.
+- Current research default: 4 latent frames/chunk (1200 tokens at240x320),
+  curriculum8/16/32/64 latent frames. This is a user-selected change from the
+  official chunk2, 6/16/32/64 recipe; do not relabel historical experiments.
+  Keep at least two chunks when training state-writing models.
+- RTransformer uses top-layer historical
   KV with per-head own/top blending for the preceding chunk. TaS uses fixed
   token banks; it is distinct from LaCT fast-weight/inner-optimizer models.
 - TaS's slot identity, sigmoid EMA, write-from-last, state sharing and assigned

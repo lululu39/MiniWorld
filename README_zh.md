@@ -284,14 +284,17 @@ orbit_right, orbit_left, spiral, zoom_in, zoom_out
 
 | 阶段 | latent 帧数 | 默认 batch/GPU | 时长 | 学习率 | 初始化 |
 | --- | ---: | ---: | ---: | ---: | --- |
-| 1 | 6 | 8 | 100 epoch | `1e-4` | 从零开始 |
+| 1 | 8 | 8 | 100 epoch | `1e-4` | 从零开始 |
 | 2 | 16 | 4 | 50 epoch | `2e-5` | 阶段 1 |
 | 3 | 32 | 1 | 30k step | `2e-5` | 阶段 2 |
 | 4 | 64 | 1 | 30k step | `2e-5` | 阶段 3 |
 
 阶段 1、2 按固定的 epoch 数训练（`STAGE1_EPOCHS`、`STAGE2_EPOCHS`）；长上下文阶段则按固定的优化器步数训练（`STAGE3_MAX_TRAIN_STEPS`、`STAGE4_MAX_TRAIN_STEPS`），这样它们的开销不会随数据集规模变化。
 
-所有阶段都使用 240×320 的视频、latent chunk size 为 2、bf16 混合精度以及 Muon 优化器。
+所有阶段都使用 240×320 的视频、latent chunk size 为 4、bf16 混合精度以及 Muon 优化器。
+
+当前研究配置统一使用串行计算、chunk4，课程长度为8/16/32/64个latent frames（29/61/125/253个RGB帧）。这是用户指定的新协议；上游原配置是chunk2、首阶段6个latent frames。详见 [串行协议](REPRODUCING.md#serial-execution-and-chunk4-research-protocol)。
+
 
 ### 在 DROID 上训练
 

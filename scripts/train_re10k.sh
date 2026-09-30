@@ -24,7 +24,7 @@ WANDB_PROJECT="${MINIWORLD_WANDB_PROJECT:-miniworld}"
 WANDB_ENTITY="${MINIWORLD_WANDB_ENTITY:-LVSM-Experiment}"
 EVAL_EVERY="${EVAL_EVERY:-0}"
 
-STAGE1_LATENT_FRAMES="${STAGE1_LATENT_FRAMES:-6}"
+STAGE1_LATENT_FRAMES="${STAGE1_LATENT_FRAMES:-8}"
 STAGE2_LATENT_FRAMES="${STAGE2_LATENT_FRAMES:-16}"
 STAGE3_LATENT_FRAMES="${STAGE3_LATENT_FRAMES:-32}"
 STAGE4_LATENT_FRAMES="${STAGE4_LATENT_FRAMES:-64}"
@@ -57,7 +57,8 @@ COMMON_ARGS=(
   --vae_checkpoint "${VAE_CKPT}"
   --resize_h 240
   --resize_w 320
-  --df_chunk_size 2
+  --df_chunk_size "${DF_CHUNK_SIZE:-4}"
+  --transformer_execution "${TRANSFORMER_EXECUTION:-serial}"
   --num_workers 8
   --prefetch_factor 2
   --mixed_precision bf16

@@ -151,6 +151,8 @@ def load_pretrained(
         mismatches = [key for key, value in expected.items() if key in recorded and recorded[key] != value]
         if mismatches:
             raise ValueError(f"Checkpoint backbone configuration differs: {mismatches}")
+    if 'df_chunk_size' in recorded and recorded['df_chunk_size'] != model.cfg.df_chunk_size:
+        raise ValueError('Checkpoint chunk size differs from the requested training protocol')
     model_state = model.state_dict()
     raw_model = ckpt.get("model", ckpt.get("ema_model", {}))
     filtered = {k: v for k, v in raw_model.items() if k in model_state and model_state[k].shape == v.shape}
@@ -400,7 +402,7 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="Kept for CLI/API compatibility; DF training samples clean context via Mode A/B.",
     )
-    parser.add_argument("--df_chunk_size", type=int, default=2)
+    parser.add_argument("--df_chunk_size", type=int, default=4)
     parser.add_argument("--df_ardiff_step", type=int, default=10)
     parser.add_argument(
         "--timestep_baseshift",
@@ -458,6 +460,10 @@ def parse_args() -> argparse.Namespace:
     add_validation_args(parser)
     add_backbone_args(parser)
     args = parser.parse_args()
+    if args.df_chunk_size < 1:
+        parser.error('--df_chunk_size must be positive')
+    if args.backbone in ('rtransformer', 'tas') and args.latent_frames <= args.df_chunk_size:
+        parser.error('Recurrent training requires more than one chunk so state writers receive gradients')
     validate_options(args)
     if args.wandb_name is None:
         stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')

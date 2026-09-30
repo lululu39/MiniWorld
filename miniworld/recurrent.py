@@ -24,8 +24,8 @@ class RecurrentMiniWorldModel(MiniWorldModel):
                  memory_window_frames=4, slot_embed=True, gated_ema=True,
                  write_from_last=True, state_sharing=True, assigned_write=True,
                  **kwargs):
-        if backbone not in ('rtransformer', 'tas'):
-            raise ValueError('Expected rtransformer or tas')
+        if backbone not in ('transformer', 'rtransformer', 'tas'):
+            raise ValueError('Expected transformer, rtransformer or tas')
         if num_memory_tokens < 1 or memory_window_frames < 0:
             raise ValueError('Memory slots must be positive; history window must be nonnegative')
         super().__init__(*args, **kwargs)
@@ -37,7 +37,7 @@ class RecurrentMiniWorldModel(MiniWorldModel):
         if backbone == 'rtransformer':
             for block in self.blocks:
                 block.attn.prev_chunk_alpha = nn.Parameter(torch.zeros(self.num_heads))
-        else:
+        elif backbone == 'tas':
             self.readers = nn.ModuleList([MemoryReader(self.hidden_size, self.num_heads) for _ in self.blocks])
             self.banks = nn.ModuleList([
                 MemoryBank(self.hidden_size, self.num_heads, num_memory_tokens,
