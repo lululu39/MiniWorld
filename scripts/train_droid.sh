@@ -58,7 +58,7 @@ COMMON_ARGS=(
   --wm_model "${MODEL}"
   --backbone "${BACKBONE}"
   --num_memory_tokens "${NUM_MEMORY_TOKENS:-256}"
-  --memory_window_frames "${MEMORY_WINDOW_FRAMES:-4}"
+  --memory_window_frames "${MEMORY_WINDOW_FRAMES:-0}"
   --seed "${SEED:-42}"
   --vae_checkpoint "${VAE_CKPT}"
   --resize_h 240

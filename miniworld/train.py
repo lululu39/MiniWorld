@@ -152,7 +152,8 @@ def load_pretrained(
     recorded = ckpt.get("meta", {})
     if "backbone" in recorded:
         expected = backbone_config(model.cfg)
-        mismatches = [key for key, value in expected.items() if key in recorded and recorded[key] != value]
+        mismatches = [key for key, value in expected.items() if key in recorded and recorded[key] != value
+                      and not (key == 'memory_window_frames' and expected['backbone'] != 'tas')]
         if mismatches:
             raise ValueError(f"Checkpoint backbone configuration differs: {mismatches}")
     if 'df_chunk_size' in recorded and recorded['df_chunk_size'] != model.cfg.df_chunk_size:

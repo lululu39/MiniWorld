@@ -53,6 +53,9 @@ local; do not copy unrelated LLM evaluations, LVSM datasets or machine setup.
 - TaS's slot identity, sigmoid EMA, write-from-last, state sharing and assigned
   write switches remain independently configurable. Read old banks throughout
   the layer sweep, write afterward, keep training gradients across chunks.
+  TaS attention uses only the current chunk's raw KV. Only memory banks cross
+  chunk boundaries; never retain previous-chunk/sliding-window/raw-history KV
+  for TaS. Default memory is256 tokens of backbone width in one shared bank.
   Persistent inference state is accepted only on clean chunk commit; tentative
   denoising calls must never mutate committed state or cross CFG branches.
 - Record the command/config, Git revision, dependency lock, seed, precision,

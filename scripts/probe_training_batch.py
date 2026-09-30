@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import torch
@@ -33,6 +34,7 @@ from miniworld.vae.codec import load_wan22_vae, vae_decode, vae_encode
 def probe(vae, sample, args, frames, batch, backbone):
     args.probe_phase = 'setup'
     torch.manual_seed(42)
+    np.random.seed(42)
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
     cfg = DenoiserConfig(wm_model='B', backbone=backbone,
@@ -40,7 +42,7 @@ def probe(vae, sample, args, frames, batch, backbone):
                          latent_frames=frames, df_chunk_size=4, cond_dim=720,
                          cond_per_token=True, cond_dropout_prob=.1,
                          wm_use_checkpoint=True, num_memory_tokens=256,
-                         memory_window_frames=4)
+                         memory_window_frames=0)
     model = build_denoiser_from_mode(cfg).cuda()
     # Exercise recurrent/write gradients beyond the AdaLN-zero initialization.
     torch.nn.init.normal_(model.net.shared_mod[-1].weight, std=.005)
@@ -55,18 +57,29 @@ def probe(vae, sample, args, frames, batch, backbone):
     video_for_vae = videos.permute(0, 4, 1, 2, 3).contiguous()
     cond_cfg = ConditioningConfig(use_pose_cond=True, use_action_cond=False, pose_enc_freq=15)
     timings, vae_times, dit_times, losses = [], [], [], []
+    state_info = None
+    phase_peaks = {name: [] for name in ('vae_pose', 'training', 'decode', 'state_inspection')}
+    allocated_peaks = [torch.cuda.max_memory_allocated()]
+    reserved_peaks = [torch.cuda.max_memory_reserved()]
+    def record_phase(name):
+        allocated_peaks.append(torch.cuda.max_memory_allocated())
+        reserved_peaks.append(torch.cuda.max_memory_reserved())
+        phase_peaks[name].append(allocated_peaks[-1]/2**30)
     for step in range(args.steps):
         torch.cuda.synchronize()
         started = time.perf_counter()
         args.probe_phase = 'vae_and_pose'
+        torch.cuda.reset_peak_memory_stats()
         with torch.no_grad(), torch.autocast('cuda', dtype=torch.bfloat16):
             latents = vae_encode(vae, video_for_vae)
             cond = build_cond_seq_for_batch(cfg=cond_cfg, poses=poses, actions=None,
                                            t_latent=frames, h_lat=15, w_lat=20)
         torch.cuda.synchronize()
         after_vae = time.perf_counter()
+        record_phase('vae_pose')
         optimizer.zero_grad(set_to_none=True)
         args.probe_phase = 'forward'
+        torch.cuda.reset_peak_memory_stats()
         with torch.autocast('cuda', dtype=torch.bfloat16):
             # The last iteration also covers training's reconstruction tensors.
             outputs = wrapped(latents, cond, return_pred=step == args.steps - 1)
@@ -84,17 +97,38 @@ def probe(vae, sample, args, frames, batch, backbone):
             raise RuntimeError('Optimizer did not update weights')
         torch.cuda.synchronize()
         ended = time.perf_counter()
+        record_phase('training')
         timings.append(ended - started)
         vae_times.append(after_vae - started)
         dit_times.append(ended - after_vae)
         losses.append(float(loss.detach()))
         if pred is not None:
             args.probe_phase = 'reconstruction_decode'
+            torch.cuda.reset_peak_memory_stats()
             with torch.no_grad(), torch.autocast('cuda', dtype=torch.bfloat16):
                 rgb = vae_decode(vae, pred[:1].float())
             if not torch.isfinite(rgb).all():
                 raise RuntimeError('Nonfinite decoded reconstruction')
             del rgb
+            record_phase('decode')
+            if backbone == 'tas':
+                args.probe_phase = 'bank_only_state_inspection'
+                torch.cuda.reset_peak_memory_stats()
+                model.net.eval()
+                with torch.no_grad(), torch.autocast('cuda', dtype=torch.bfloat16):
+                    length = min(frames, cfg.df_chunk_size)
+                    _, state = model.net.forward_with_cache(
+                        latents[:1, :, :length], latents.new_zeros((1, length)),
+                        cond[:1, :length], return_kv=True, chunk_size=cfg.df_chunk_size)
+                assert all(kv is None for kv in state.kv)
+                state_info = dict(bank_shapes=[list(bank.shape) for bank in state.banks],
+                                  bank_dtypes=[str(bank.dtype) for bank in state.banks],
+                                  persistent_bytes_per_video=sum(bank.numel()*bank.element_size()
+                                                                 for bank in state.banks),
+                                  cross_chunk_kv_entries=0)
+                model.net.train()
+                del state
+                record_phase('state_inspection')
         del latents, cond, outputs, pred, noise_t, loss, before
     warm = timings[1:] or timings
     return dict(status='passed', frames=frames, raw_frames=raw_frames, batch_per_gpu=batch,
@@ -102,8 +136,10 @@ def probe(vae, sample, args, frames, batch, backbone):
                 losses=losses, seconds=timings, median_seconds=statistics.median(warm),
                 videos_per_second=batch/statistics.median(warm),
                 vae_pose_seconds=vae_times, forward_backward_update_ema_seconds=dit_times,
-                peak_allocated_gib=torch.cuda.max_memory_allocated()/2**30,
-                peak_reserved_gib=torch.cuda.max_memory_reserved()/2**30)
+                memory_state=state_info,
+                phase_peak_allocated_gib=phase_peaks,
+                peak_allocated_gib=max(allocated_peaks)/2**30,
+                peak_reserved_gib=max(reserved_peaks)/2**30)
 
 
 def main():
@@ -141,7 +177,7 @@ def main():
     record = dict(config=vars(args), git_revision=subprocess.check_output(
         ['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip(),
         lock_sha256=hashlib.sha256((repo/'uv.lock').read_bytes()).hexdigest(),
-        torch=torch.__version__, cuda=torch.version.cuda,
+        torch=torch.__version__, cuda=torch.version.cuda, torch_seed=42, numpy_seed=42,
         gpu=torch.cuda.get_device_name(), results=[],
         protocol='Repeated held-out clip; singleton DDP; real VAE/pose; no data-loader or multi-rank timing')
     dataset = RealEstate10KDataset([args.data_root], 4*(max(f for _, f, _ in cases)-1)+1, 1,

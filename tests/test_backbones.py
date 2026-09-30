@@ -70,14 +70,20 @@ def test_checkpoint_gradients_and_no_cache_mutation(kind):
     for _ in range(2):
         net.forward_with_cache(x[:, :, 2:4], t[:, 2:4], y[:, 2:4], state, 2, False, 2)
     for a, b in zip(state.kv, before.kv):
-        torch.testing.assert_close(a, b)
+        if a is None:
+            assert b is None
+        else:
+            torch.testing.assert_close(a, b)
     for a, b in zip(state.banks, before.banks):
         torch.testing.assert_close(a, b)
     shifted = Denoiser._evict_and_shift_cache(state, 1, 4, net.feat_rope)
-    assert shifted.kv[0][0].shape[-2] == 4
-    assert shifted.previous_tokens == 4
     if kind == 'tas':
+        assert shifted is state and all(kv is None for kv in shifted.kv)
+        assert shifted.previous_tokens == 0
         assert shifted.banks[0] is state.banks[0]
+    else:
+        assert shifted.kv[0][0].shape[-2] == 4
+        assert shifted.previous_tokens == 4
 
 
 def legacy_rtransformer_forward(net, x, t, y, chunk_size):
@@ -164,6 +170,97 @@ def test_tas_switches(feature):
     assert all(torch.isfinite(p.grad).all() for p in net.parameters() if p.grad is not None)
 
 
+@pytest.mark.parametrize('sharing', [False, True])
+def test_tas_only_banks_cross_chunk_boundaries(sharing):
+    net = model('tas', state_sharing=sharing).eval()
+    calls = []
+    def attention_inputs(module, args, kwargs):
+        calls.append(args[0].shape[1])
+        assert kwargs['past_kv'] is None
+        assert kwargs['return_kv'] is False
+    handles = [block.attn.register_forward_pre_hook(attention_inputs, with_kwargs=True)
+               for block in net.blocks]
+    state = None
+    for chunk in range(8):
+        x = torch.randn(1, 4, 4, 2, 2)
+        _, state = net.forward_with_cache(x, torch.zeros(1, 4), torch.randn(1, 4, 6),
+                    past_kv_list=state, current_position_offset=chunk*4,
+                    return_kv=True, chunk_size=4)
+        assert all(kv is None for kv in state.kv) and state.previous_tokens == 0
+        assert len(state.banks) == (1 if sharing else net.depth)
+        assert all(bank.shape == (1, 8, 64) for bank in state.banks)
+        assert sum(bank.numel() for bank in state.banks) == (1 if sharing else net.depth)*8*64
+    assert calls == [16]*(8*net.depth)
+    for handle in handles:
+        handle.remove()
+
+
+def test_tas_memory_is_the_only_cross_chunk_information_path(monkeypatch):
+    net = model('tas')
+    x, t, y = inputs()
+    changed = x.clone(); changed[:, :, :2] += 20
+    def no_read(x, state, identity):
+        return torch.zeros_like(x), x
+    for reader in net.readers:
+        monkeypatch.setattr(reader, 'forward', no_read)
+    a = net(x, t, y, temporal_causal=True, chunk_size=2)
+    b = net(changed, t, y, temporal_causal=True, chunk_size=2)
+    # Removing only memory reads must remove all dependence on prior chunks.
+    torch.testing.assert_close(a[:, :, 2:], b[:, :, 2:], atol=0, rtol=0)
+
+
+def test_tas_rejects_raw_history_configuration_and_state():
+    with pytest.raises(ValueError, match='within-chunk KV'):
+        model('tas', memory_window_frames=4)
+    net = model('tas'); x, t, y = inputs()
+    raw = torch.randn(1, 2, 4, 32)
+    state = VideoState([(raw, raw)]*net.depth, (torch.randn(1, 8, 64),), 4)
+    with pytest.raises(ValueError, match='cross-chunk KV'):
+        net.forward_with_cache(x, t, y, state, return_kv=True, chunk_size=2)
+
+
+def test_tas_streaming_cfg_commits_clean_banks_without_raw_kv(monkeypatch):
+    from miniworld.miniworld import MiniWorldModels
+    def tiny(**kwargs):
+        cls = kwargs.pop('_model_class', MiniWorldModel)
+        return cls(depth=2, hidden_size=64, num_heads=2, patch_size=1, adaln_lora_dim=8, **kwargs)
+    monkeypatch.setitem(MiniWorldModels, 'bank_only_tiny', tiny)
+    cfg = DenoiserConfig(wm_model='bank_only_tiny', backbone='tas', latent_size=2,
+                        latent_channels=4, latent_frames=8, cond_dim=6,
+                        num_memory_tokens=8, df_chunk_size=2, num_sampling_steps=3,
+                        df_ardiff_step=1, cfg_scale=2, cond_dropout_prob=.1,
+                        wm_use_checkpoint=False)
+    d = Denoiser(cfg).eval()
+    torch.nn.init.normal_(d.net.shared_mod[-1].weight, std=.03)
+    torch.nn.init.normal_(d.net.final_layer.linear.weight, std=.03)
+    committed = {'conditional': [], 'unconditional': []}
+    original = d.net.forward_with_cache
+    def tracked(x, t, y, **kwargs):
+        state = kwargs.get('past_kv_list')
+        before = [bank.clone() for bank in state.banks] if isinstance(state, VideoState) else []
+        result, candidate = original(x, t, y, **kwargs)
+        if before:
+            for a, b in zip(before, state.banks):
+                torch.testing.assert_close(a, b, atol=0, rtol=0)
+        if kwargs.get('return_kv'):
+            assert torch.count_nonzero(t) == 0
+            assert all(kv is None for kv in candidate.kv)
+            branch = 'unconditional' if kwargs.get('cond_drop') is not None else 'conditional'
+            committed[branch].append(candidate.banks[0])
+        else:
+            assert candidate is None
+        return result, candidate
+    monkeypatch.setattr(d.net, 'forward_with_cache', tracked)
+    data = torch.randn(1, 4, 14, 2, 2)
+    result = d.generate_eval_latents_streaming(data, torch.randn(1, 14, 6),
+                 total_len=14, history_len=1, max_cache_chunks=1,
+                 inflight_chunks=2, sink_frames=1)
+    assert torch.isfinite(result).all()
+    assert len(committed['conditional']) == len(committed['unconditional']) > 1
+    assert {b.data_ptr() for b in committed['conditional']}.isdisjoint(
+           b.data_ptr() for b in committed['unconditional'])
+
+
 @pytest.mark.parametrize('kind', ['transformer', 'rtransformer', 'tas'])
 @pytest.mark.parametrize('history', [1, 4])
 @pytest.mark.parametrize('chunk', [2, 4])
@@ -215,6 +312,15 @@ def test_checkpoint_backbone_metadata(kind, tmp_path, monkeypatch):
     restored = Denoiser(cfg)
     restored.load_state_dict(weights, strict=True)
     assert load_pretrained(str(tmp_path/'last.pt'), restored, copy.deepcopy(restored)) == (1, 2)
+    legacy = torch.load(tmp_path/'last.pt', weights_only=False)
+    legacy['meta']['memory_window_frames'] = 4
+    torch.save(legacy, tmp_path/'legacy_history.pt')
+    if kind == 'tas':
+        with pytest.raises(ValueError, match='memory_window_frames'):
+            load_pretrained(str(tmp_path/'legacy_history.pt'), restored, copy.deepcopy(restored))
+    else:
+        # The retired TaS-only field never changes Transformer/RTransformer.
+        assert load_pretrained(str(tmp_path/'legacy_history.pt'), restored, copy.deepcopy(restored)) == (1, 2)
     restored.cfg.backbone = 'tas' if kind != 'tas' else 'transformer'
     with pytest.raises(ValueError, match='backbone configuration'):
         load_pretrained(str(tmp_path/'last.pt'), restored, copy.deepcopy(restored))

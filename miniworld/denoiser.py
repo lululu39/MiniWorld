@@ -574,6 +574,11 @@ class DiffusionForcingDenoiser(Denoiser):
         RoPE range, while the true origin frame(s) stay resident as an anchor.
         """
         if isinstance(cache, VideoState):
+            if all(kv is None for kv in cache.kv):
+                # TaS has no raw history to evict or rotate. Its bank is not
+                # position-indexed; sampler cache_frames still tracks the
+                # logical position window independently of physical KV.
+                return cache
             shifted = DiffusionForcingDenoiser._evict_and_shift_cache(
                 cache.kv, drop_frames, tokens_per_frame, rope_module, sink_frames)
             remaining = shifted[-1][0].shape[-2] if shifted[-1] is not None else 0

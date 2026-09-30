@@ -21,13 +21,15 @@ def cat_kv(a, b):
 
 class RecurrentMiniWorldModel(MiniWorldModel):
     def __init__(self, *args, backbone='rtransformer', num_memory_tokens=256,
-                 memory_window_frames=4, slot_embed=True, gated_ema=True,
+                 memory_window_frames=0, slot_embed=True, gated_ema=True,
                  write_from_last=True, state_sharing=True, assigned_write=True,
                  **kwargs):
         if backbone not in ('transformer', 'rtransformer', 'tas'):
             raise ValueError('Expected transformer, rtransformer or tas')
         if num_memory_tokens < 1 or memory_window_frames < 0:
             raise ValueError('Memory slots must be positive; history window must be nonnegative')
+        if backbone == 'tas' and memory_window_frames != 0:
+            raise ValueError('TaS only keeps within-chunk KV; memory_window_frames must be 0')
         super().__init__(*args, **kwargs)
         self.backbone = backbone
         self.memory_window_frames = memory_window_frames
@@ -57,8 +59,9 @@ class RecurrentMiniWorldModel(MiniWorldModel):
                          for own, top in zip(past, previous_top))
         mod = block.modulation(emb, shared, pose)
         shift, scale, gate, mshift, mscale, mgate = mod.chunk(6, -1)
-        attention, kv = block.attn(modulate(block.norm1(x), shift, scale),
-                                   rope=rope, past_kv=past, return_kv=True)
+        attended = block.attn(modulate(block.norm1(x), shift, scale),
+                              rope=rope, past_kv=past, return_kv=self.backbone != 'tas')
+        attention, kv = (attended, None) if self.backbone == 'tas' else attended
         x = x + gate * attention
         if self.backbone == 'tas':
             read, h = self.readers[idx](x, bank, identity)
@@ -88,6 +91,8 @@ class RecurrentMiniWorldModel(MiniWorldModel):
             banks = (() if self.backbone != 'tas' else
                      tuple(bank.initial.unsqueeze(0).expand(b, -1, -1).to(tokens.dtype) for bank in self.banks))
             state = VideoState([None] * self.depth, banks)
+        if self.backbone == 'tas' and any(kv is not None for kv in state.kv):
+            raise ValueError('TaS streaming state cannot contain cross-chunk KV')
         outputs = []
         for start in range(0, frames, chunk_size):
             count = min(chunk_size, frames - start)
@@ -99,9 +104,6 @@ class RecurrentMiniWorldModel(MiniWorldModel):
             current, sources = [], []
             for i in range(self.depth):
                 past = state.kv[i]
-                if past is not None and self.backbone == 'tas':
-                    keep = self.memory_window_frames * per_frame
-                    past = tuple(v[..., -keep:, :] for v in past) if keep else None
                 bank_id = self.bank_for_layer[i]
                 bank = state.banks[bank_id] if state.banks else None
                 identity = self.banks[bank_id].identity(chunk.dtype) if state.banks else None
@@ -121,12 +123,15 @@ class RecurrentMiniWorldModel(MiniWorldModel):
                     updated = (checkpoint(bank, source, state.banks[j], use_reentrant=False)
                                if self.use_checkpoint and self.training else bank(source, state.banks[j]))
                     next_banks.append(updated)
-            next_kv = []
-            for i, kv in enumerate(current):
-                # Archive the preceding top-layer K/V once its successor is complete.
-                old = state.kv[-1] if self.backbone == 'rtransformer' else state.kv[i]
-                next_kv.append(cat_kv(old, kv))
-            state = VideoState(next_kv, tuple(next_banks), count * per_frame)
+            next_kv = [None] * self.depth
+            if self.backbone != 'tas':
+                for i, kv in enumerate(current):
+                    # Archive preceding top-layer K/V for RTransformer.
+                    old = state.kv[-1] if self.backbone == 'rtransformer' else state.kv[i]
+                    next_kv[i] = cat_kv(old, kv)
+            # TaS persists only banks. Current-chunk KV stays inside attention.
+            state = VideoState(next_kv, tuple(next_banks),
+                               0 if self.backbone == 'tas' else count * per_frame)
             outputs.append(self.final_layer(chunk, emb[:, sl]))
         result = torch.cat(outputs, dim=1)
         p = self.patch_size
