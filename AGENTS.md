@@ -55,7 +55,9 @@ local; do not copy unrelated LLM evaluations, LVSM datasets or machine setup.
   the layer sweep, write afterward, keep training gradients across chunks.
   TaS attention uses only the current chunk's raw KV. Only memory banks cross
   chunk boundaries; never retain previous-chunk/sliding-window/raw-history KV
-  for TaS. Default memory is256 tokens of backbone width in one shared bank.
+  for TaS. Default memory is two chunks of tokens:2400 tokens at the current
+  1200-token chunk size, in one shared bank of backbone width. Enable WFL,
+  state sharing, assigned write, sigmoid EMA and slot identity by default.
   Persistent inference state is accepted only on clean chunk commit; tentative
   denoising calls must never mutate committed state or cross CFG branches.
 - Record the command/config, Git revision, dependency lock, seed, precision,
@@ -68,8 +70,9 @@ local; do not copy unrelated LLM evaluations, LVSM datasets or machine setup.
 - Include the backbone/model explicitly in every run name (for example
   `re10k_B_transformer_serial_c4_s42_...`, not just `re10k_B_serial_...`).
 - Define a descriptive run name for each experiment (`RUN_NAME` in launchers,
-  `--wandb_name` in the CLI). All four curriculum stages of one experiment share
-  a single W&B run through `OUTPUT_DIR/wandb_run.json` and explicit resume.
+  `--wandb_name` in the CLI). New experiments use a separate W&B run for every
+  model/stage, with explicit model/stage names and stage-local identity files.
+  The old shared-run mode is supported only when explicitly selected.
   Log cumulative `train_step` plus stage/local-step/latent-frame fields. Keep
   stage checkpoints in separate directories. Fresh experiments use fresh run
   identities; never attach an unrelated experiment to a historical run.
@@ -80,3 +83,9 @@ local; do not copy unrelated LLM evaluations, LVSM datasets or machine setup.
 - Synthetic checks use offline W&B or mocks; never populate the real project
   with test runs. W&B startup failures stop training unless `--no-wandb` was
   explicitly selected. Read historical runs without mutating them.
+- Keep testing minimal and specific to changed behavior/configuration. Once
+  essential checks pass, launch the authorized experiment instead of adding
+  broad or repeated checks and speculative edge-case tests.
+- During experiment preparation, hold the GPUs authorized for that experiment
+  with scripts/prepare_stage.py. Record its PID and release the relevant reservation
+  before a check or training launch. Never reserve unrelated/occupied GPUs.

@@ -47,6 +47,23 @@ def test_run_identity_requires_explicit_continuation(tmp_path):
     with pytest.raises(ValueError,match='project differs'):wandb_session(args)
 
 
+def test_separate_stages_use_fresh_run_ids_and_explicit_resume(tmp_path):
+    args=SimpleNamespace(wandb_run_file=str(tmp_path/'stage1.json'),curriculum_stage=1,
+                         wandb_stage_mode='separate',resume=False,
+                         wandb_entity='LVSM-Experiment',wandb_project='miniworld',
+                         wandb_mode='online',wandb_name='transformer_stage1')
+    first=wandb_session(args)
+    args.curriculum_stage=2;args.wandb_name='transformer_stage2'
+    args.wandb_run_file=str(tmp_path/'stage2.json')
+    second=wandb_session(args)
+    assert first[0]!=second[0] and first[2]==second[2]=='never'
+    Path(args.wandb_run_file).write_text(json.dumps(dict(id=second[0],name=args.wandb_name,
+        entity=args.wandb_entity,project=args.wandb_project,mode='online',curriculum_stage=2)))
+    with pytest.raises(ValueError,match='already exists'):wandb_session(args)
+    args.resume=True
+    assert wandb_session(args)[:3]==second[:2]+('must',)
+
+
 def test_two_stages_share_id_and_continuous_metrics(tmp_path,monkeypatch):
     install_stubs(monkeypatch)
     monkeypatch.setattr(train,'build_dataset',lambda args,**kw:Clips((100,101),args.latent_frames))
@@ -70,7 +87,8 @@ def test_two_stages_share_id_and_continuous_metrics(tmp_path,monkeypatch):
               '--eval_data_root','/held_out','--eval_every','1','--eval_num_videos','3',
               '--latent_frames',str(frames),'--max_train_steps',str(steps),'--batch_size','1','--num_workers','0',
               '--mixed_precision','no','--image_log_every','0','--log_every','1','--output_dir',str(tmp_path/f'stage{stage}'),
-              '--wandb_name','one-experiment','--wandb_run_file',str(tmp_path/'run.json'),'--curriculum_stage',str(stage)]
+              '--wandb_name','one-experiment','--wandb_stage_mode','shared',
+              '--wandb_run_file',str(tmp_path/'run.json'),'--curriculum_stage',str(stage)]
         if stage==2:argv+=['--load_pretrained',str(tmp_path/'stage1/last.pt')]
         monkeypatch.setattr(sys,'argv',argv)
         train.main()

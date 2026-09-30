@@ -41,7 +41,7 @@ def probe(vae, sample, args, frames, batch, backbone):
                          transformer_execution='serial', latent_size=(15, 20),
                          latent_frames=frames, df_chunk_size=4, cond_dim=720,
                          cond_per_token=True, cond_dropout_prob=.1,
-                         wm_use_checkpoint=True, num_memory_tokens=256,
+                         wm_use_checkpoint=True, num_memory_tokens=args.num_memory_tokens,
                          memory_window_frames=0)
     model = build_denoiser_from_mode(cfg).cuda()
     # Exercise recurrent/write gradients beyond the AdaLN-zero initialization.
@@ -152,6 +152,7 @@ def main():
                         help='backbone:latent_frames:batch, e.g. tas:64:4')
     parser.add_argument('--steps', type=int, default=3)
     parser.add_argument('--lr', type=float, default=2e-4)
+    parser.add_argument('--num-memory-tokens', type=int, default=2400)
     parser.add_argument('--stage-lrs', type=float, nargs=4, default=None,
                         help='Override LR for the 8/16/32/64-latent-frame stages')
     parser.add_argument('--memory-fraction', type=float, default=.65,

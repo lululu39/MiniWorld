@@ -20,7 +20,7 @@ def cat_kv(a, b):
 
 
 class RecurrentMiniWorldModel(MiniWorldModel):
-    def __init__(self, *args, backbone='rtransformer', num_memory_tokens=256,
+    def __init__(self, *args, backbone='rtransformer', num_memory_tokens=2400,
                  memory_window_frames=0, slot_embed=True, gated_ema=True,
                  write_from_last=True, state_sharing=True, assigned_write=True,
                  **kwargs):

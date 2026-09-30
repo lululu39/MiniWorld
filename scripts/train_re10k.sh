@@ -24,7 +24,21 @@ WANDB_PROJECT="${MINIWORLD_WANDB_PROJECT:-miniworld}"
 WANDB_ENTITY="${MINIWORLD_WANDB_ENTITY:-LVSM-Experiment}"
 EVAL_EVERY="${EVAL_EVERY:-0}"
 START_STAGE="${START_STAGE:-1}"
-if [[ ! "$START_STAGE" =~ ^[1-4]$ ]]; then echo "START_STAGE must be 1..4" >&2; exit 2; fi
+END_STAGE="${END_STAGE:-4}"
+WANDB_STAGE_MODE="${WANDB_STAGE_MODE:-separate}"
+if [[ ! "$START_STAGE" =~ ^[1-4]$ || ! "$END_STAGE" =~ ^[1-4]$ || "$START_STAGE" -gt "$END_STAGE" ]]; then
+  echo "START_STAGE/END_STAGE must be 1..4 with START_STAGE <= END_STAGE" >&2; exit 2
+fi
+if [[ "$WANDB_STAGE_MODE" != separate && "$WANDB_STAGE_MODE" != shared ]]; then
+  echo "WANDB_STAGE_MODE must be separate or shared" >&2; exit 2
+fi
+stage_wandb_args() {
+  if [[ "$WANDB_STAGE_MODE" == separate ]]; then
+    STAGE_WANDB_ARGS=(--wandb_name "${RUN_NAME}_stage${1}" --wandb_run_file "${OUTPUT_DIR}/stage${1}_lf${2}/wandb_run.json")
+  else
+    STAGE_WANDB_ARGS=(--wandb_name "$RUN_NAME" --wandb_run_file "${OUTPUT_DIR}/wandb_run.json")
+  fi
+}
 
 STAGE1_LATENT_FRAMES="${STAGE1_LATENT_FRAMES:-8}"
 STAGE2_LATENT_FRAMES="${STAGE2_LATENT_FRAMES:-16}"
@@ -57,7 +71,7 @@ COMMON_ARGS=(
   --pose_dir "${POSE_DIR}"
   --wm_model "${MODEL}"
   --backbone "${BACKBONE}"
-  --num_memory_tokens "${NUM_MEMORY_TOKENS:-256}"
+  --num_memory_tokens "${NUM_MEMORY_TOKENS:-2400}"
   --memory_window_frames "${MEMORY_WINDOW_FRAMES:-0}"
   --seed "${SEED:-42}"
   --vae_checkpoint "${VAE_CKPT}"
@@ -72,8 +86,7 @@ COMMON_ARGS=(
   --wandb_project "${WANDB_PROJECT}"
   --wandb_entity "${WANDB_ENTITY}"
   --wandb_group "${RUN_NAME}"
-  --wandb_name "${RUN_NAME}"
-  --wandb_run_file "${OUTPUT_DIR}/wandb_run.json"
+  --wandb_stage_mode "${WANDB_STAGE_MODE}"
   --eval_every "${EVAL_EVERY}"
   --eval_num_videos "${EVAL_NUM_VIDEOS:-8}"
   --eval_latent_frames "${EVAL_LATENT_FRAMES:-0}"
@@ -101,9 +114,10 @@ fi
 # Optional model/experiment flags, forwarded to each curriculum stage.
 COMMON_ARGS+=("$@")
 
-if [[ "$START_STAGE" -le 1 ]]; then
+if [[ "$START_STAGE" -le 1 && "$END_STAGE" -ge 1 ]]; then
+stage_wandb_args 1 "${STAGE1_LATENT_FRAMES}"
 echo "Stage 1/4: latent_frames=${STAGE1_LATENT_FRAMES}, batch=${STAGE1_BATCH_SIZE}, epochs=${STAGE1_EPOCHS}"
-"${TORCHRUN[@]}" "${COMMON_ARGS[@]}" \
+"${TORCHRUN[@]}" "${COMMON_ARGS[@]}" "${STAGE_WANDB_ARGS[@]}" \
   --latent_frames "${STAGE1_LATENT_FRAMES}" \
   --batch_size "${STAGE1_BATCH_SIZE}" \
   --max_epochs "${STAGE1_EPOCHS}" \
@@ -114,9 +128,10 @@ fi
 
 STAGE1_CKPT="${OUTPUT_DIR}/stage1_lf${STAGE1_LATENT_FRAMES}/last.pt"
 
-if [[ "$START_STAGE" -le 2 ]]; then
+if [[ "$START_STAGE" -le 2 && "$END_STAGE" -ge 2 ]]; then
+stage_wandb_args 2 "${STAGE2_LATENT_FRAMES}"
 echo "Stage 2/4: latent_frames=${STAGE2_LATENT_FRAMES}, batch=${STAGE2_BATCH_SIZE}, epochs=${STAGE2_EPOCHS}"
-"${TORCHRUN[@]}" "${COMMON_ARGS[@]}" \
+"${TORCHRUN[@]}" "${COMMON_ARGS[@]}" "${STAGE_WANDB_ARGS[@]}" \
   --latent_frames "${STAGE2_LATENT_FRAMES}" \
   --batch_size "${STAGE2_BATCH_SIZE}" \
   --max_epochs "${STAGE2_EPOCHS}" \
@@ -128,9 +143,10 @@ fi
 
 STAGE2_CKPT="${OUTPUT_DIR}/stage2_lf${STAGE2_LATENT_FRAMES}/last.pt"
 
-if [[ "$START_STAGE" -le 3 ]]; then
+if [[ "$START_STAGE" -le 3 && "$END_STAGE" -ge 3 ]]; then
+stage_wandb_args 3 "${STAGE3_LATENT_FRAMES}"
 echo "Stage 3/4: latent_frames=${STAGE3_LATENT_FRAMES}, batch=${STAGE3_BATCH_SIZE}, max_train_steps=${STAGE3_MAX_TRAIN_STEPS}"
-"${TORCHRUN[@]}" "${COMMON_ARGS[@]}" \
+"${TORCHRUN[@]}" "${COMMON_ARGS[@]}" "${STAGE_WANDB_ARGS[@]}" \
   --latent_frames "${STAGE3_LATENT_FRAMES}" \
   --batch_size "${STAGE3_BATCH_SIZE}" \
   --max_train_steps "${STAGE3_MAX_TRAIN_STEPS}" \
@@ -142,9 +158,10 @@ fi
 
 STAGE3_CKPT="${OUTPUT_DIR}/stage3_lf${STAGE3_LATENT_FRAMES}/last.pt"
 
-if [[ "$START_STAGE" -le 4 ]]; then
+if [[ "$START_STAGE" -le 4 && "$END_STAGE" -ge 4 ]]; then
+stage_wandb_args 4 "${STAGE4_LATENT_FRAMES}"
 echo "Stage 4/4: latent_frames=${STAGE4_LATENT_FRAMES}, batch=${STAGE4_BATCH_SIZE}, max_train_steps=${STAGE4_MAX_TRAIN_STEPS}"
-"${TORCHRUN[@]}" "${COMMON_ARGS[@]}" \
+"${TORCHRUN[@]}" "${COMMON_ARGS[@]}" "${STAGE_WANDB_ARGS[@]}" \
   --latent_frames "${STAGE4_LATENT_FRAMES}" \
   --batch_size "${STAGE4_BATCH_SIZE}" \
   --max_train_steps "${STAGE4_MAX_TRAIN_STEPS}" \
@@ -154,4 +171,5 @@ echo "Stage 4/4: latent_frames=${STAGE4_LATENT_FRAMES}, batch=${STAGE4_BATCH_SIZ
   --output_dir "${OUTPUT_DIR}/stage4_lf${STAGE4_LATENT_FRAMES}"
 fi
 
-echo "Done: ${OUTPUT_DIR}/stage4_lf${STAGE4_LATENT_FRAMES}/last.pt"
+END_FRAMES_VAR="STAGE${END_STAGE}_LATENT_FRAMES"
+echo "Done: ${OUTPUT_DIR}/stage${END_STAGE}_lf${!END_FRAMES_VAR}/last.pt"

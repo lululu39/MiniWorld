@@ -46,9 +46,10 @@ def wandb_session(args):
     """Only explicit stage continuation/resume may reuse a persisted identity."""
     filename = getattr(args, 'wandb_run_file', None)
     stage = getattr(args, 'curriculum_stage', 1)
+    separate = getattr(args, 'wandb_stage_mode', 'shared') == 'separate'
     path = Path(filename) if filename else None
     if path and path.exists():
-        if stage == 1 and not getattr(args, 'resume', False):
+        if (separate or stage == 1) and not getattr(args, 'resume', False):
             raise ValueError('W&B run file already exists; use a fresh output root or explicit --resume')
         saved = json.loads(path.read_text())
         for key, value in [('entity', args.wandb_entity), ('project', args.wandb_project), ('mode', args.wandb_mode)]:
@@ -56,7 +57,9 @@ def wandb_session(args):
                 raise ValueError(f'Curriculum W&B {key} differs from the recorded run')
         if not saved.get('id'):
             raise ValueError('Curriculum W&B run ID is missing')
+        if separate and saved.get('curriculum_stage', stage) != stage:
+            raise ValueError('W&B run file belongs to a different stage')
         return saved['id'], saved['name'], 'must', path
-    if stage > 1 and path:
+    if stage > 1 and path and not separate:
         raise ValueError('Later curriculum stages require the preceding stage W&B run file')
     return uuid.uuid4().hex, args.wandb_name, 'never', path

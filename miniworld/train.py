@@ -153,7 +153,9 @@ def load_pretrained(
     if "backbone" in recorded:
         expected = backbone_config(model.cfg)
         mismatches = [key for key, value in expected.items() if key in recorded and recorded[key] != value
-                      and not (key == 'memory_window_frames' and expected['backbone'] != 'tas')]
+                      and not (expected['backbone'] != 'tas' and key in {
+                          'num_memory_tokens', 'memory_window_frames', 'slot_embed', 'gated_ema',
+                          'write_from_last', 'state_sharing', 'assigned_write'})]
         if mismatches:
             raise ValueError(f"Checkpoint backbone configuration differs: {mismatches}")
     if 'df_chunk_size' in recorded and recorded['df_chunk_size'] != model.cfg.df_chunk_size:
@@ -267,7 +269,8 @@ def init_wandb(args: argparse.Namespace, global_batch_size: int) -> Optional[Any
             for metric, direction in [('psnr', 'max'), ('ssim', 'max'), ('lpips', 'min')]:
                 run.define_metric('eval/' + metric, step_metric='train_step', summary=direction)
             record = dict(entity=args.wandb_entity, project=args.wandb_project, name=run_name,
-                          id=run.id, url=run.url, mode=args.wandb_mode)
+                          id=run.id, url=run.url, mode=args.wandb_mode,
+                          curriculum_stage=stage, wandb_stage_mode=args.wandb_stage_mode)
             write_json(Path(args.output_dir)/'wandb_run.json', record)
             if run_file:
                 write_json(run_file, record)
@@ -468,7 +471,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--wandb_entity", default="LVSM-Experiment")
     parser.add_argument("--wandb_project", default="miniworld")
     parser.add_argument("--wandb_group", default=None)
-    parser.add_argument("--wandb_run_file", default=None, help="Shared curriculum run identity JSON")
+    parser.add_argument("--wandb_run_file", default=None, help="Persisted W&B run identity JSON")
+    parser.add_argument("--wandb_stage_mode", choices=['separate', 'shared'], default='separate',
+                        help='Default: a distinct run per curriculum stage')
     parser.add_argument("--curriculum_stage", type=int, choices=[1, 2, 3, 4], default=1)
     parser.add_argument("--step_offset", type=int, default=None, help="Default: inferred from preceding checkpoint")
     parser.add_argument("--wandb_mode", choices=['online', 'offline'], default='online')
@@ -694,4 +699,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
