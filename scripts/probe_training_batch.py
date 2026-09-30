@@ -25,7 +25,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from miniworld.conditioning import ConditioningConfig, build_cond_seq_for_batch
 from miniworld.data.re10k import RealEstate10KDataset
-from miniworld.denoiser import Denoiser, DenoiserConfig
+from miniworld.denoiser import DenoiserConfig, build_denoiser_from_mode
 from miniworld.train import build_optimizer, update_ema
 from miniworld.vae.codec import load_wan22_vae, vae_decode, vae_encode
 
@@ -40,7 +40,7 @@ def probe(vae, sample, args, frames, batch, backbone):
                          cond_per_token=True, cond_dropout_prob=.1,
                          wm_use_checkpoint=True, num_memory_tokens=256,
                          memory_window_frames=4)
-    model = Denoiser(cfg).cuda()
+    model = build_denoiser_from_mode(cfg).cuda()
     # Exercise recurrent/write gradients beyond the AdaLN-zero initialization.
     torch.nn.init.normal_(model.net.shared_mod[-1].weight, std=.005)
     torch.nn.init.normal_(model.net.final_layer.linear.weight, std=.005)
