@@ -80,6 +80,73 @@ def test_checkpoint_gradients_and_no_cache_mutation(kind):
         assert shifted.banks[0] is state.banks[0]
 
 
+def legacy_rtransformer_forward(net, x, t, y, chunk_size):
+    """Pre-optimization formula: blend/concatenate outside the layer call."""
+    b, _, frames, height, width = x.shape
+    per_frame = height * width  # This reference uses the test model's patch1.
+    tokens = net.x_embedder(x)
+    frame_ids = torch.arange(tokens.shape[1]) // per_frame
+    emb, shared, pose = net._build_conditioning(
+        t, y, b, frames, tokens.shape[1], frame_ids, tokens.device, tokens.dtype, None)
+    history, previous_tokens, outputs = [None] * net.depth, 0, []
+    for start in range(0, frames, chunk_size):
+        count = min(chunk_size, frames - start)
+        sl = slice(start * per_frame, (start + count) * per_frame)
+        def rope(q, count=count, position=start):
+            return net.feat_rope(q, num_frames_override=count, start_frame=position)
+        chunk, current = tokens[:, sl], []
+        for i in range(net.depth):
+            past = history[i]
+            if past is not None:
+                alpha = net.blocks[i].attn.prev_chunk_alpha.sigmoid()[None, :, None, None]
+                p = previous_tokens
+                past = tuple(torch.cat((own[..., :-p, :],
+                             (1-alpha).to(own.dtype)*own[..., -p:, :] +
+                             alpha.to(own.dtype)*top[..., -p:, :]), dim=-2)
+                             for own, top in zip(past, history[-1]))
+            # No previous_top is passed: this reference already mixed the KV.
+            chunk, kv, _ = net._layer(i, chunk, emb[:, sl],
+                None if shared is None else shared[:, sl],
+                None if pose is None else pose[:, sl], rope, past, None, None)
+            current.append(kv)
+        old = history[-1]
+        history = [kv if old is None else tuple(torch.cat((a, v), dim=-2)
+                   for a, v in zip(old, kv)) for kv in current]
+        previous_tokens = count * per_frame
+        outputs.append(net.final_layer(chunk, emb[:, sl]))
+    return torch.cat(outputs, dim=1).reshape(b, frames, height, width, net.out_channels).permute(0, 4, 1, 2, 3)
+
+
+@pytest.mark.parametrize('pose', [False, True])
+@pytest.mark.parametrize('chunk_size', [2, 4])
+def test_checkpointed_rtransformer_matches_legacy_blend_formula(pose, chunk_size):
+    reference = model('rtransformer', pose, use_checkpoint=False)
+    for block in reference.blocks:
+        block.attn.prev_chunk_alpha.data.copy_(torch.tensor([-1.5, 2.0]))
+    checked = copy.deepcopy(reference)
+    checked.use_checkpoint = True
+    frames = 16
+    x = torch.randn(1, 4, frames, 2, 2)
+    t = torch.rand(1, frames)
+    y = torch.randn((1, frames, 6, 2, 2) if pose else (1, frames, 6))
+    inputs_and_grads, outputs = [], []
+    for net, legacy in ((reference, True), (checked, False)):
+        z, times, cond = [v.detach().clone().requires_grad_() for v in (x, t, y)]
+        out = (legacy_rtransformer_forward(net, z, times, cond, chunk_size) if legacy else
+               net(z, times, cond, temporal_causal=True, chunk_size=chunk_size))
+        out[:, :, -chunk_size:].square().mean().backward()
+        outputs.append(out.detach())
+        inputs_and_grads.append([v.grad for v in (z, times, cond)])
+    torch.testing.assert_close(outputs[0], outputs[1])
+    for a, b in zip(*inputs_and_grads):
+        torch.testing.assert_close(a, b, atol=2e-6, rtol=2e-4)
+    assert checked.blocks[0].attn.prev_chunk_alpha.grad.abs().sum() > 0
+    for (name, p), (other, q) in zip(reference.named_parameters(), checked.named_parameters()):
+        assert name == other and (p.grad is None) == (q.grad is None)
+        if p.grad is not None:
+            torch.testing.assert_close(p.grad, q.grad, atol=2e-6, rtol=2e-4, msg=name)
+
+
 def test_assigned_write_formula():
     q, k, v = [torch.randn(1, 2, n, 4, dtype=torch.double, requires_grad=True) for n in (3, 5, 5)]
     a = (k @ q.transpose(-1, -2)).float().div(2).softmax(-1).transpose(-1, -2)

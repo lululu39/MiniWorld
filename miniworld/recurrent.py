@@ -43,8 +43,18 @@ class RecurrentMiniWorldModel(MiniWorldModel):
                 MemoryBank(self.hidden_size, self.num_heads, num_memory_tokens,
                            slot_embed, gated_ema, assigned_write) for _ in self.bank_owners])
 
-    def _layer(self, idx, x, emb, shared, pose, rope, past, bank, identity):
+    def _layer(self, idx, x, emb, shared, pose, rope, past, bank, identity,
+               previous_top=None, previous_tokens=0):
         block = self.blocks[idx]
+        # Recompute the mixed history with the layer instead of retaining a
+        # second full-history tensor per layer/chunk outside its checkpoint.
+        if self.backbone == 'rtransformer' and past is not None and previous_tokens:
+            p = previous_tokens
+            alpha = block.attn.prev_chunk_alpha.sigmoid()[None, :, None, None]
+            past = tuple(torch.cat((own[..., :-p, :],
+                         (1-alpha).to(own.dtype)*own[..., -p:, :] +
+                         alpha.to(own.dtype)*top[..., -p:, :]), dim=-2)
+                         for own, top in zip(past, previous_top))
         mod = block.modulation(emb, shared, pose)
         shift, scale, gate, mshift, mscale, mgate = mod.chunk(6, -1)
         attention, kv = block.attn(modulate(block.norm1(x), shift, scale),
@@ -89,21 +99,16 @@ class RecurrentMiniWorldModel(MiniWorldModel):
             current, sources = [], []
             for i in range(self.depth):
                 past = state.kv[i]
-                if past is not None and self.backbone == 'rtransformer' and state.previous_tokens:
-                    p = state.previous_tokens
-                    alpha = self.blocks[i].attn.prev_chunk_alpha.sigmoid()[None, :, None, None]
-                    past = tuple(torch.cat((own[..., :-p, :],
-                                 (1-alpha).to(own.dtype)*own[..., -p:, :] +
-                                 alpha.to(own.dtype)*top[..., -p:, :]), dim=-2)
-                                 for own, top in zip(past, state.kv[-1]))
-                elif past is not None and self.backbone == 'tas':
+                if past is not None and self.backbone == 'tas':
                     keep = self.memory_window_frames * per_frame
                     past = tuple(v[..., -keep:, :] for v in past) if keep else None
                 bank_id = self.bank_for_layer[i]
                 bank = state.banks[bank_id] if state.banks else None
                 identity = self.banks[bank_id].identity(chunk.dtype) if state.banks else None
                 args = (i, chunk, emb[:, sl], None if shared is None else shared[:, sl],
-                        None if pose is None else pose[:, sl], rope, past, bank, identity)
+                        None if pose is None else pose[:, sl], rope, past, bank, identity,
+                        state.kv[-1] if self.backbone == 'rtransformer' else None,
+                        state.previous_tokens if self.backbone == 'rtransformer' else 0)
                 chunk, kv, h = (checkpoint(self._layer, *args, use_reentrant=False)
                                 if self.use_checkpoint and self.training else self._layer(*args))
                 current.append(kv)
