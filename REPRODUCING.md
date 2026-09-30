@@ -38,16 +38,17 @@ names and checkpoint layout are preserved. No neighboring repo is needed at runt
 | --- | --- |
 | Transformer | Serial block-causal DiT with per-layer history KV; `--transformer_execution parallel` retains the legacy full-clip reference |
 | RTransformer | Same DiT; chunks traverse all layers sequentially. Older history uses final-layer KV; the immediately preceding chunk blends own/final-layer KV with a learned per-head sigmoid initialized at 0.5 |
-| TaS | Same DiT plus serial slot reads; bounded preceding raw-video history plus the current bidirectional chunk; fixed learned token banks updated after each layer sweep |
+| TaS | Current-chunk bidirectional DiT attention plus memory reads; only fixed token banks cross chunk boundaries and are updated after each layer sweep |
 
-TaS defaults: 256 slots of backbone width, one shared bank, 4 latent frames of
-raw history, slot identities, sigmoid EMA initialized at 0.1, final-layer write
+TaS defaults: 256 slots of backbone width, one shared bank, no cross-chunk
+raw KV, slot identities, sigmoid EMA initialized at 0.1, final-layer write
 source, and assigned writing. Video defaults are deliberately not the LLM's
 4096/8192 token settings. All five features can be independently disabled via
 `--no-slot_embed`, `--no-gated_ema`, `--no-write_from_last`,
-`--no-state_sharing`, `--no-assigned_write`. Memory capacity and raw-history
-length use `--num_memory_tokens` and `--memory_window_frames` (0 means no raw
-history). Memory/history is per sample and resets for each training clip.
+`--no-state_sharing`, `--no-assigned_write`. Memory capacity uses
+`--num_memory_tokens`. The legacy `--memory_window_frames` field must be0 for
+TaS; nonzero values are rejected rather than adding a history-KV bypass.
+Memory is per sample and resets for each training clip.
 
 ```text
 z = x + AdaLN_attention_gate * video_attention(modulated_norm(x))
@@ -73,8 +74,8 @@ This is not the separate LLM fixed-additive-0.05 experiment.
 
 Adaptations for video: retain MiniWorld's 3D RoPE, actions/rays, AdaLN and flow
 loss. Memory reads use the existing AdaLN attention gate so DiT's zero-residual
-initialization remains intact. The raw-video history window is counted in whole
-latent frames before the current chunk, not a token-causal text SWA mask.
+initialization remains intact. Video self-attention reads only the current
+bidirectional chunk. No preceding raw-video KV or text SWA is retained by TaS.
 All earlier training states remain attached to autograd. The implementation is
 a PyTorch/SDPA reference port; it does not port specialized Triton assigned-write
 kernels or claim memory/throughput parity with the source implementations.
@@ -82,11 +83,12 @@ kernels or claim memory/throughput parity with the source implementations.
 Streaming returns functional `VideoState` snapshots: tentative denoising can
 simulate successive in-flight chunks, but the caller discards its candidate
 state. Only completed chunks recomputed at t=0 are committed. CFG branches
-have separate banks and KV. Cache eviction retains the bank, removes old raw
-KV, and shifts temporal RoPE while preserving the sink. RTransformer retains
+have separate state. TaS returns banks with no raw KV, and logical-window
+eviction preserves the bank without rotating it. Other backbones' eviction
+removes old raw KV and shifts temporal RoPE while preserving the sink. RTransformer retains
 raw KV up to the sampler's cache budget; it is not fixed-size recurrent memory.
-TaS reads a bounded raw window; its training implementation retains per-layer
-raw KV tensors for the clip, while inference uses the sampler's rolling budget.
+TaS carries only its fixed banks in training and inference. Autograd still
+retains the bank trajectory and ordinary training activations across chunks.
 
 ## Source audit
 
@@ -433,8 +435,9 @@ for one committed-history chunk plus one in-flight chunk during evaluation.
 Increasing chunk size changes block-causal visibility, noise grouping, automatic
 timestep shift and update frequency; it is not just a performance switch.
 Short-video convergence under the new protocol needs real training evidence.
-TaS defaults remain256 slots with4 latent frames of preceding raw KV; matching
-chunk size does not change the architectural distinction in retained history.
+TaS uses256 slots with no preceding raw KV. The initial hybrid history-KV port
+was corrected per the user's LVSM architecture; its earlier capacity probes
+are historical and are not measurements of the corrected TaS.
 
 Launchers accept `DF_CHUNK_SIZE` (default4) and `TRANSFORMER_EXECUTION` (default
 serial). They start from8 latent frames by default. Explicitly set chunk2,
@@ -522,9 +525,13 @@ single-in-flight output equivalence. No noise/CFG/EMA hyperparameters changed.
 
 ### Common larger-batch B comparison
 
-The prepared RE10K profile uses per-GPU batches32/16/8/2 across Transformer,
+The prepared RE10K profile uses per-GPU batches32/16/8/4 across Transformer,
 RTransformer and TaS, with common per-stage LRs and preserved video exposure.
-See [the capacity record and launch instructions](experiments/re10k_B_shared_batch_20260930.md).
+See [the corrected capacity record and launch instructions](experiments/rtransformer_checkpoint_memory_20260930.md).
+The initial32/16/8/2 recommendation was limited by RTransformer blending its
+history outside checkpoint regions. Moving that identical formula inside the
+layer checkpoint removes the extra retained KV copies without detaching history
+or changing the model/checkpoint schema. The historical probe record is retained.
 The existing launchers also accept STAGE1_LR through STAGE4_LR; their defaults
 remain1e-4/2e-5/2e-5/2e-5. Capacity checks use the actual VAE/pose pipeline and
 singleton DDP, not an eight-rank throughput or convergence benchmark.

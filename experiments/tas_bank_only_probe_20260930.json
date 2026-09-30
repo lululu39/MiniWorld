@@ -1,0 +1,1120 @@
+{
+  "model_revision": "fd764bd00773c8dbae3c097fa7e6bc1e9cb1c963",
+  "rtransformer_checkpoint_revision": "8a834ee8922b12c9392339a198bf2684e5d325bd",
+  "initial_record": "re10k_B_shared_batch_probe_20260930.json",
+  "former_hybrid_tas_results_are_not_bank_only": true,
+  "active_training_restarted": false,
+  "before_selected_cases": [
+    {
+      "status": "passed",
+      "frames": 32,
+      "raw_frames": 125,
+      "batch_per_gpu": 8,
+      "backbone": "rtransformer",
+      "lr": 5.656854249e-05,
+      "parameters": 112432320,
+      "losses": [
+        2.3872084617614746,
+        2.3772521018981934,
+        2.355292320251465
+      ],
+      "seconds": [
+        8.418797170743346,
+        8.401507753878832,
+        8.461300884373486
+      ],
+      "median_seconds": 8.431404319126159,
+      "videos_per_second": 0.9488336340190041,
+      "vae_pose_seconds": [
+        4.159402606077492,
+        4.161526350304484,
+        4.184249128215015
+      ],
+      "forward_backward_update_ema_seconds": [
+        4.259394564665854,
+        4.2399814035743475,
+        4.277051756158471
+      ],
+      "peak_allocated_gib": 44.06293869018555,
+      "peak_reserved_gib": 47.498046875
+    },
+    {
+      "status": "passed",
+      "frames": 64,
+      "raw_frames": 253,
+      "batch_per_gpu": 2,
+      "backbone": "transformer",
+      "lr": 2.828427125e-05,
+      "parameters": 112432176,
+      "losses": [
+        2.483116865158081,
+        2.4783294200897217,
+        2.464570999145508
+      ],
+      "seconds": [
+        5.592969129793346,
+        5.5837396774441,
+        5.7159500531852245
+      ],
+      "median_seconds": 5.6498448653146625,
+      "videos_per_second": 0.3539920206089786,
+      "vae_pose_seconds": [
+        2.3928186297416687,
+        2.3651914205402136,
+        2.3991058599203825
+      ],
+      "forward_backward_update_ema_seconds": [
+        3.2001505000516772,
+        3.218548256903887,
+        3.316844193264842
+      ],
+      "peak_allocated_gib": 25.060994625091553,
+      "peak_reserved_gib": 27.158203125
+    },
+    {
+      "status": "passed",
+      "frames": 64,
+      "raw_frames": 253,
+      "batch_per_gpu": 2,
+      "backbone": "rtransformer",
+      "lr": 2.828427125e-05,
+      "parameters": 112432320,
+      "losses": [
+        2.4855873584747314,
+        2.480348587036133,
+        2.468590497970581
+      ],
+      "seconds": [
+        9.529180630110204,
+        5.982069623656571,
+        5.962213842198253
+      ],
+      "median_seconds": 5.972141732927412,
+      "videos_per_second": 0.334888234311821,
+      "vae_pose_seconds": [
+        4.791836263611913,
+        2.253969721496105,
+        2.374095412902534
+      ],
+      "forward_backward_update_ema_seconds": [
+        4.7373443664982915,
+        3.7280999021604657,
+        3.5881184292957187
+      ],
+      "peak_allocated_gib": 40.01521062850952,
+      "peak_reserved_gib": 42.68359375
+    },
+    {
+      "status": "passed",
+      "frames": 64,
+      "raw_frames": 253,
+      "batch_per_gpu": 2,
+      "backbone": "tas",
+      "lr": 2.828427125e-05,
+      "parameters": 147056689,
+      "losses": [
+        2.472568988800049,
+        2.466160774230957,
+        2.4594879150390625
+      ],
+      "seconds": [
+        5.938028829172254,
+        5.728118377737701,
+        5.420619466342032
+      ],
+      "median_seconds": 5.5743689220398664,
+      "videos_per_second": 0.3587850083069361,
+      "vae_pose_seconds": [
+        2.3953432366251945,
+        2.378409679979086,
+        2.148838810622692
+      ],
+      "forward_backward_update_ema_seconds": [
+        3.542685592547059,
+        3.349708697758615,
+        3.27178065571934
+      ],
+      "peak_allocated_gib": 25.910512447357178,
+      "peak_reserved_gib": 27.46875
+    }
+  ],
+  "rtransformer_fix_probe": {
+    "config": {
+      "data_root": "/mnt/localssd/dataset/re10k/test_256",
+      "pose_dir": "/mnt/localssd/dataset/re10k/test_poses",
+      "filter_cache_dir": "/mnt/localssd/dataset/re10k/filter_cache",
+      "vae_checkpoint": "/mnt/localssd/models/Wan2.2-TI2V-5B/Wan2.2_VAE.pth",
+      "cases": [
+        "transformer:64:2",
+        "rtransformer:64:2",
+        "rtransformer:64:4",
+        "transformer:64:4",
+        "tas:64:4",
+        "rtransformer:32:8"
+      ],
+      "steps": 3,
+      "lr": 0.0002,
+      "stage_lrs": [
+        0.0002,
+        4e-05,
+        5.656854249e-05,
+        4e-05
+      ],
+      "memory_fraction": 0.65,
+      "output": "/mnt/localssd/experiments/yibo/miniworld/rtransformer_memory_fix_20260930/probe.json"
+    },
+    "git_revision": "8a834ee8922b12c9392339a198bf2684e5d325bd",
+    "lock_sha256": "7a79e838806250bcb9329ad47251c45ec61940c406f34d4e9e9763b216a9d49e",
+    "torch": "2.8.0+cu128",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H100 80GB HBM3",
+    "results": [
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 2,
+        "backbone": "transformer",
+        "lr": 4e-05,
+        "parameters": 112432176,
+        "losses": [
+          2.483582019805908,
+          2.4697518348693848,
+          2.4563889503479004
+        ],
+        "seconds": [
+          9.094422601163387,
+          6.0357616590335965,
+          5.7022871328517795
+        ],
+        "median_seconds": 5.869024395942688,
+        "videos_per_second": 0.34077213946880486,
+        "vae_pose_seconds": [
+          4.6858966099098325,
+          2.395394609309733,
+          2.391511246562004
+        ],
+        "forward_backward_update_ema_seconds": [
+          4.408525991253555,
+          3.6403670497238636,
+          3.3107758862897754
+        ],
+        "peak_allocated_gib": 39.22369575500488,
+        "peak_reserved_gib": 39.59375
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 2,
+        "backbone": "rtransformer",
+        "lr": 4e-05,
+        "parameters": 112432320,
+        "losses": [
+          2.4854044914245605,
+          2.4780712127685547,
+          2.460279941558838
+        ],
+        "seconds": [
+          6.073938429355621,
+          6.112829126417637,
+          6.128242818638682
+        ],
+        "median_seconds": 6.12053597252816,
+        "videos_per_second": 0.32676876812372957,
+        "vae_pose_seconds": [
+          2.391063878312707,
+          2.366554063744843,
+          2.4097217498347163
+        ],
+        "forward_backward_update_ema_seconds": [
+          3.6828745510429144,
+          3.746275062672794,
+          3.718521068803966
+        ],
+        "peak_allocated_gib": 25.06682777404785,
+        "peak_reserved_gib": 27.0
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 4,
+        "backbone": "rtransformer",
+        "lr": 4e-05,
+        "parameters": 112432320,
+        "losses": [
+          2.488698959350586,
+          2.4820191860198975,
+          2.4677767753601074
+        ],
+        "seconds": [
+          13.722748442552984,
+          11.053731553256512,
+          11.002672808244824
+        ],
+        "median_seconds": 11.028202180750668,
+        "videos_per_second": 0.36270644429985666,
+        "vae_pose_seconds": [
+          6.751964272931218,
+          4.390295553021133,
+          4.409535836428404
+        ],
+        "forward_backward_update_ema_seconds": [
+          6.970784169621766,
+          6.663436000235379,
+          6.5931369718164206
+        ],
+        "peak_allocated_gib": 45.42348909378052,
+        "peak_reserved_gib": 48.87109375
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 4,
+        "backbone": "transformer",
+        "lr": 4e-05,
+        "parameters": 112432176,
+        "losses": [
+          2.4861159324645996,
+          2.4749040603637695,
+          2.4564642906188965
+        ],
+        "seconds": [
+          10.082238853909075,
+          9.255221266299486,
+          10.15082777198404
+        ],
+        "median_seconds": 9.703024519141763,
+        "videos_per_second": 0.41224259426624654,
+        "vae_pose_seconds": [
+          4.406653148122132,
+          3.6273811403661966,
+          4.395916145294905
+        ],
+        "forward_backward_update_ema_seconds": [
+          5.675585705786943,
+          5.6278401259332895,
+          5.754911626689136
+        ],
+        "peak_allocated_gib": 45.403480529785156,
+        "peak_reserved_gib": 48.80078125
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 4,
+        "backbone": "tas",
+        "lr": 4e-05,
+        "parameters": 147056689,
+        "losses": [
+          2.4890012741088867,
+          2.4614720344543457,
+          2.4384665489196777
+        ],
+        "seconds": [
+          9.804936832748353,
+          9.680673233233392,
+          9.71368108689785
+        ],
+        "median_seconds": 9.697177160065621,
+        "videos_per_second": 0.41249117490320575,
+        "vae_pose_seconds": [
+          4.417681135237217,
+          4.416922444477677,
+          4.403469767421484
+        ],
+        "forward_backward_update_ema_seconds": [
+          5.3872556975111365,
+          5.263750788755715,
+          5.310211319476366
+        ],
+        "peak_allocated_gib": 46.409507751464844,
+        "peak_reserved_gib": 50.041015625
+      },
+      {
+        "status": "passed",
+        "frames": 32,
+        "raw_frames": 125,
+        "batch_per_gpu": 8,
+        "backbone": "rtransformer",
+        "lr": 5.656854249e-05,
+        "parameters": 112432320,
+        "losses": [
+          2.388324022293091,
+          2.3801896572113037,
+          2.3501968383789062
+        ],
+        "seconds": [
+          11.072989099659026,
+          8.492327376268804,
+          8.618656761944294
+        ],
+        "median_seconds": 8.555492069106549,
+        "videos_per_second": 0.9350718737602011,
+        "vae_pose_seconds": [
+          6.556214523501694,
+          4.198739479295909,
+          4.1958266431465745
+        ],
+        "forward_backward_update_ema_seconds": [
+          4.5167745761573315,
+          4.293587896972895,
+          4.4228301187977195
+        ],
+        "peak_allocated_gib": 30.213478565216064,
+        "peak_reserved_gib": 33.390625
+      }
+    ],
+    "protocol": "Repeated held-out clip; singleton DDP; real VAE/pose; no data-loader or multi-rank timing",
+    "sample_id": "000c3ab189999a83"
+  },
+  "warm_pair_probe": {
+    "config": {
+      "data_root": "/mnt/localssd/dataset/re10k/test_256",
+      "pose_dir": "/mnt/localssd/dataset/re10k/test_poses",
+      "filter_cache_dir": "/mnt/localssd/dataset/re10k/filter_cache",
+      "vae_checkpoint": "/mnt/localssd/models/Wan2.2-TI2V-5B/Wan2.2_VAE.pth",
+      "cases": [
+        "transformer:64:2",
+        "rtransformer:64:2",
+        "transformer:64:2"
+      ],
+      "steps": 3,
+      "lr": 0.0002,
+      "stage_lrs": [
+        0.0002,
+        4e-05,
+        5.656854249e-05,
+        2.828427125e-05
+      ],
+      "memory_fraction": 0.65,
+      "output": "/mnt/localssd/experiments/yibo/miniworld/rtransformer_memory_fix_20260930/warm_pair.json"
+    },
+    "git_revision": "8a834ee8922b12c9392339a198bf2684e5d325bd",
+    "lock_sha256": "7a79e838806250bcb9329ad47251c45ec61940c406f34d4e9e9763b216a9d49e",
+    "torch": "2.8.0+cu128",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H100 80GB HBM3",
+    "results": [
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 2,
+        "backbone": "transformer",
+        "lr": 2.828427125e-05,
+        "parameters": 112432176,
+        "losses": [
+          2.4824814796447754,
+          2.475703716278076,
+          2.4664595127105713
+        ],
+        "seconds": [
+          9.079428991302848,
+          5.7496732557192445,
+          5.631893802434206
+        ],
+        "median_seconds": 5.690783529076725,
+        "videos_per_second": 0.3514454538256669,
+        "vae_pose_seconds": [
+          4.941813837736845,
+          2.3865947546437383,
+          2.368487184867263
+        ],
+        "forward_backward_update_ema_seconds": [
+          4.137615153566003,
+          3.363078501075506,
+          3.263406617566943
+        ],
+        "peak_allocated_gib": 39.22369575500488,
+        "peak_reserved_gib": 39.595703125
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 2,
+        "backbone": "rtransformer",
+        "lr": 2.828427125e-05,
+        "parameters": 112432320,
+        "losses": [
+          2.485642194747925,
+          2.4802961349487305,
+          2.475374937057495
+        ],
+        "seconds": [
+          6.054539387114346,
+          6.10946804843843,
+          6.038838651962578
+        ],
+        "median_seconds": 6.074153350200504,
+        "videos_per_second": 0.3292639952749927,
+        "vae_pose_seconds": [
+          2.378244251012802,
+          2.3681088723242283,
+          2.364701136946678
+        ],
+        "forward_backward_update_ema_seconds": [
+          3.676295136101544,
+          3.7413591761142015,
+          3.6741375150159
+        ],
+        "peak_allocated_gib": 25.062017917633057,
+        "peak_reserved_gib": 26.9609375
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 2,
+        "backbone": "transformer",
+        "lr": 2.828427125e-05,
+        "parameters": 112432176,
+        "losses": [
+          2.4829304218292236,
+          2.4757649898529053,
+          2.4695963859558105
+        ],
+        "seconds": [
+          5.534536979161203,
+          5.400980924256146,
+          5.627062461338937
+        ],
+        "median_seconds": 5.514021692797542,
+        "videos_per_second": 0.3627116669875303,
+        "vae_pose_seconds": [
+          2.361363822594285,
+          2.3561420096084476,
+          2.3863678220659494
+        ],
+        "forward_backward_update_ema_seconds": [
+          3.173173156566918,
+          3.0448389146476984,
+          3.240694639272988
+        ],
+        "peak_allocated_gib": 25.088321685791016,
+        "peak_reserved_gib": 27.193359375
+      }
+    ],
+    "protocol": "Repeated held-out clip; singleton DDP; real VAE/pose; no data-loader or multi-rank timing",
+    "sample_id": "000c3ab189999a83"
+  },
+  "bank_only_probe": {
+    "config": {
+      "data_root": "/mnt/localssd/dataset/re10k/test_256",
+      "pose_dir": "/mnt/localssd/dataset/re10k/test_poses",
+      "filter_cache_dir": "/mnt/localssd/dataset/re10k/filter_cache",
+      "vae_checkpoint": "/mnt/localssd/models/Wan2.2-TI2V-5B/Wan2.2_VAE.pth",
+      "cases": [
+        "transformer:64:2",
+        "rtransformer:64:2",
+        "tas:64:2",
+        "transformer:64:4",
+        "rtransformer:64:4",
+        "tas:64:4",
+        "tas:32:8",
+        "tas:16:16",
+        "tas:8:32"
+      ],
+      "steps": 3,
+      "lr": 0.0002,
+      "stage_lrs": [
+        0.0002,
+        4e-05,
+        5.656854249e-05,
+        4e-05
+      ],
+      "memory_fraction": 0.65,
+      "output": "/mnt/localssd/experiments/yibo/miniworld/tas_bank_only_20260930/probe.json"
+    },
+    "git_revision": "fd764bd00773c8dbae3c097fa7e6bc1e9cb1c963",
+    "lock_sha256": "7a79e838806250bcb9329ad47251c45ec61940c406f34d4e9e9763b216a9d49e",
+    "torch": "2.8.0+cu128",
+    "cuda": "12.8",
+    "torch_seed": 42,
+    "numpy_seed": 42,
+    "gpu": "NVIDIA H100 80GB HBM3",
+    "results": [
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 2,
+        "backbone": "transformer",
+        "lr": 4e-05,
+        "parameters": 112432176,
+        "losses": [
+          2.4814743995666504,
+          2.4743127822875977,
+          2.453282356262207
+        ],
+        "seconds": [
+          9.182099184021354,
+          5.734526188112795,
+          5.621765413321555
+        ],
+        "median_seconds": 5.678145800717175,
+        "videos_per_second": 0.35222765849855264,
+        "vae_pose_seconds": [
+          4.901585609652102,
+          2.3823693860322237,
+          2.3993849717080593
+        ],
+        "forward_backward_update_ema_seconds": [
+          4.280513574369252,
+          3.3521568020805717,
+          3.2223804416134953
+        ],
+        "memory_state": null,
+        "phase_peak_allocated_gib": {
+          "vae_pose": [
+            15.379547595977783,
+            7.376436710357666,
+            7.380764961242676
+          ],
+          "training": [
+            24.659412384033203,
+            25.110126972198486,
+            25.105835914611816
+          ],
+          "decode": [
+            39.22369575500488
+          ],
+          "state_inspection": []
+        },
+        "peak_allocated_gib": 39.22369575500488,
+        "peak_reserved_gib": 39.59375
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 2,
+        "backbone": "rtransformer",
+        "lr": 4e-05,
+        "parameters": 112432320,
+        "losses": [
+          2.4851584434509277,
+          2.47871732711792,
+          2.4612014293670654
+        ],
+        "seconds": [
+          6.0177481565624475,
+          6.055463538505137,
+          6.108304504305124
+        ],
+        "median_seconds": 6.081884021405131,
+        "videos_per_second": 0.32884546843725065,
+        "vae_pose_seconds": [
+          2.3829768681898713,
+          2.363173129968345,
+          2.396547415293753
+        ],
+        "forward_backward_update_ema_seconds": [
+          3.6347712883725762,
+          3.692290408536792,
+          3.711757089011371
+        ],
+        "memory_state": null,
+        "phase_peak_allocated_gib": {
+          "vae_pose": [
+            6.515519618988037,
+            7.373198986053467,
+            7.375329971313477
+          ],
+          "training": [
+            24.66259765625,
+            25.05957841873169,
+            25.056190967559814
+          ],
+          "decode": [
+            7.756230354309082
+          ],
+          "state_inspection": []
+        },
+        "peak_allocated_gib": 25.05957841873169,
+        "peak_reserved_gib": 26.958984375
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 2,
+        "backbone": "tas",
+        "lr": 4e-05,
+        "parameters": 147056689,
+        "losses": [
+          2.4760730266571045,
+          2.4534735679626465,
+          2.4373703002929688
+        ],
+        "seconds": [
+          5.660812879912555,
+          5.503941284492612,
+          5.519410843029618
+        ],
+        "median_seconds": 5.511676063761115,
+        "videos_per_second": 0.36286602784039873,
+        "vae_pose_seconds": [
+          2.3670579846948385,
+          2.3936835676431656,
+          2.3664082502946258
+        ],
+        "forward_backward_update_ema_seconds": [
+          3.2937548952177167,
+          3.1102577168494463,
+          3.1530025927349925
+        ],
+        "memory_state": {
+          "bank_shapes": [
+            [
+              1,
+              256,
+              768
+            ]
+          ],
+          "bank_dtypes": [
+            "torch.bfloat16"
+          ],
+          "persistent_bytes_per_video": 393216,
+          "cross_chunk_kv_entries": 0
+        },
+        "phase_peak_allocated_gib": {
+          "vae_pose": [
+            6.905436992645264,
+            8.023383617401123,
+            8.030734062194824
+          ],
+          "training": [
+            9.457518100738525,
+            10.01898717880249,
+            10.026861667633057
+          ],
+          "decode": [
+            8.406323909759521
+          ],
+          "state_inspection": [
+            6.910642147064209
+          ]
+        },
+        "peak_allocated_gib": 10.026861667633057,
+        "peak_reserved_gib": 10.974609375
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 4,
+        "backbone": "transformer",
+        "lr": 4e-05,
+        "parameters": 112432176,
+        "losses": [
+          2.485668659210205,
+          2.471705913543701,
+          2.458004951477051
+        ],
+        "seconds": [
+          12.935680794529617,
+          10.153446317650378,
+          10.09479340724647
+        ],
+        "median_seconds": 10.124119862448424,
+        "videos_per_second": 0.3950960729768205,
+        "vae_pose_seconds": [
+          6.809677514247596,
+          4.3781030513346195,
+          4.385471138171852
+        ],
+        "forward_backward_update_ema_seconds": [
+          6.126003280282021,
+          5.775343266315758,
+          5.709322269074619
+        ],
+        "memory_state": null,
+        "phase_peak_allocated_gib": {
+          "vae_pose": [
+            16.92177724838257,
+            9.905266761779785,
+            9.907298564910889
+          ],
+          "training": [
+            44.99966812133789,
+            45.41931676864624,
+            45.40575933456421
+          ],
+          "decode": [
+            8.74869155883789
+          ],
+          "state_inspection": []
+        },
+        "peak_allocated_gib": 45.41931676864624,
+        "peak_reserved_gib": 49.2578125
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 4,
+        "backbone": "rtransformer",
+        "lr": 4e-05,
+        "parameters": 112432320,
+        "losses": [
+          2.4888765811920166,
+          2.478886842727661,
+          2.4661905765533447
+        ],
+        "seconds": [
+          10.876171349547803,
+          10.766465594992042,
+          10.940215827897191
+        ],
+        "median_seconds": 10.853340711444616,
+        "videos_per_second": 0.36855011800947934,
+        "vae_pose_seconds": [
+          4.40722772013396,
+          4.171324451453984,
+          4.377301104366779
+        ],
+        "forward_backward_update_ema_seconds": [
+          6.468943629413843,
+          6.595141143538058,
+          6.562914723530412
+        ],
+        "memory_state": null,
+        "phase_peak_allocated_gib": {
+          "vae_pose": [
+            9.049439907073975,
+            9.907346248626709,
+            9.909404277801514
+          ],
+          "training": [
+            44.98799991607666,
+            45.396045207977295,
+            45.39625930786133
+          ],
+          "decode": [
+            8.745678901672363
+          ],
+          "state_inspection": []
+        },
+        "peak_allocated_gib": 45.39625930786133,
+        "peak_reserved_gib": 48.37890625
+      },
+      {
+        "status": "passed",
+        "frames": 64,
+        "raw_frames": 253,
+        "batch_per_gpu": 4,
+        "backbone": "tas",
+        "lr": 4e-05,
+        "parameters": 147056689,
+        "losses": [
+          2.4778690338134766,
+          2.457228183746338,
+          2.4339823722839355
+        ],
+        "seconds": [
+          9.241617143154144,
+          9.144047630950809,
+          9.184007488191128
+        ],
+        "median_seconds": 9.164027559570968,
+        "videos_per_second": 0.43648930276539544,
+        "vae_pose_seconds": [
+          4.405627680011094,
+          4.380867388099432,
+          4.413363131694496
+        ],
+        "forward_backward_update_ema_seconds": [
+          4.835989463143051,
+          4.7631802428513765,
+          4.770644356496632
+        ],
+        "memory_state": {
+          "bank_shapes": [
+            [
+              1,
+              256,
+              768
+            ]
+          ],
+          "bank_dtypes": [
+            "torch.bfloat16"
+          ],
+          "persistent_bytes_per_video": 393216,
+          "cross_chunk_kv_entries": 0
+        },
+        "phase_peak_allocated_gib": {
+          "vae_pose": [
+            9.438982009887695,
+            10.565645217895508,
+            10.562092304229736
+          ],
+          "training": [
+            14.180530071258545,
+            14.727152347564697,
+            14.744204998016357
+          ],
+          "decode": [
+            9.396388530731201
+          ],
+          "state_inspection": [
+            7.904906749725342
+          ]
+        },
+        "peak_allocated_gib": 14.744204998016357,
+        "peak_reserved_gib": 15.84375
+      },
+      {
+        "status": "passed",
+        "frames": 32,
+        "raw_frames": 125,
+        "batch_per_gpu": 8,
+        "backbone": "tas",
+        "lr": 5.656854249e-05,
+        "parameters": 147056689,
+        "losses": [
+          2.3788795471191406,
+          2.349383592605591,
+          2.3228702545166016
+        ],
+        "seconds": [
+          10.73190934304148,
+          7.871387030929327,
+          7.804291674867272
+        ],
+        "median_seconds": 7.8378393528983,
+        "videos_per_second": 1.0206894578723071,
+        "vae_pose_seconds": [
+          6.86344210896641,
+          4.17947752866894,
+          4.147788340225816
+        ],
+        "forward_backward_update_ema_seconds": [
+          3.8684672340750694,
+          3.691909502260387,
+          3.6565033346414566
+        ],
+        "memory_state": {
+          "bank_shapes": [
+            [
+              1,
+              256,
+              768
+            ]
+          ],
+          "bank_dtypes": [
+            "torch.bfloat16"
+          ],
+          "persistent_bytes_per_video": 393216,
+          "cross_chunk_kv_entries": 0
+        },
+        "phase_peak_allocated_gib": {
+          "vae_pose": [
+            17.62901496887207,
+            12.947132110595703,
+            12.952205181121826
+          ],
+          "training": [
+            13.975768566131592,
+            14.517682552337646,
+            14.5300612449646
+          ],
+          "decode": [
+            9.254544258117676
+          ],
+          "state_inspection": [
+            7.8648810386657715
+          ]
+        },
+        "peak_allocated_gib": 17.62901496887207,
+        "peak_reserved_gib": 17.853515625
+      },
+      {
+        "status": "passed",
+        "frames": 16,
+        "raw_frames": 61,
+        "batch_per_gpu": 16,
+        "backbone": "tas",
+        "lr": 4e-05,
+        "parameters": 147056689,
+        "losses": [
+          2.3362369537353516,
+          2.3123574256896973,
+          2.296847343444824
+        ],
+        "seconds": [
+          11.130970939993858,
+          7.415105305612087,
+          7.4094607178121805
+        ],
+        "median_seconds": 7.412283011712134,
+        "videos_per_second": 2.1585792089587557,
+        "vae_pose_seconds": [
+          8.08415502961725,
+          4.323302832432091,
+          4.290496742352843
+        ],
+        "forward_backward_update_ema_seconds": [
+          3.0468159103766084,
+          3.091802473179996,
+          3.1189639754593372
+        ],
+        "memory_state": {
+          "bank_shapes": [
+            [
+              1,
+              256,
+              768
+            ]
+          ],
+          "bank_dtypes": [
+            "torch.bfloat16"
+          ],
+          "persistent_bytes_per_video": 393216,
+          "cross_chunk_kv_entries": 0
+        },
+        "phase_peak_allocated_gib": {
+          "vae_pose": [
+            22.01594114303589,
+            17.737228393554688,
+            17.73580503463745
+          ],
+          "training": [
+            13.945544242858887,
+            14.488860130310059,
+            14.50302267074585
+          ],
+          "decode": [
+            9.144007682800293
+          ],
+          "state_inspection": [
+            7.819530487060547
+          ]
+        },
+        "peak_allocated_gib": 22.01594114303589,
+        "peak_reserved_gib": 22.88671875
+      },
+      {
+        "status": "passed",
+        "frames": 8,
+        "raw_frames": 29,
+        "batch_per_gpu": 32,
+        "backbone": "tas",
+        "lr": 0.0002,
+        "parameters": 147056689,
+        "losses": [
+          2.3319225311279297,
+          2.2477965354919434,
+          2.161499500274658
+        ],
+        "seconds": [
+          12.614590643905103,
+          6.635641684755683,
+          6.630164443515241
+        ],
+        "median_seconds": 6.632903064135462,
+        "videos_per_second": 4.82443353846464,
+        "vae_pose_seconds": [
+          9.590530237182975,
+          3.8209081077948213,
+          3.8315333472564816
+        ],
+        "forward_backward_update_ema_seconds": [
+          3.0240604067221284,
+          2.8147335769608617,
+          2.7986310962587595
+        ],
+        "memory_state": {
+          "bank_shapes": [
+            [
+              1,
+              256,
+              768
+            ]
+          ],
+          "bank_dtypes": [
+            "torch.bfloat16"
+          ],
+          "persistent_bytes_per_video": 393216,
+          "cross_chunk_kv_entries": 0
+        },
+        "phase_peak_allocated_gib": {
+          "vae_pose": [
+            37.02919149398804,
+            27.323017120361328,
+            27.327538013458252
+          ],
+          "training": [
+            15.249755382537842,
+            15.795803546905518,
+            15.807601928710938
+          ],
+          "decode": [
+            9.029659271240234
+          ],
+          "state_inspection": [
+            7.729050159454346
+          ]
+        },
+        "peak_allocated_gib": 37.02919149398804,
+        "peak_reserved_gib": 38.92578125
+      }
+    ],
+    "protocol": "Repeated held-out clip; singleton DDP; real VAE/pose; no data-loader or multi-rank timing",
+    "sample_id": "000c3ab189999a83"
+  },
+  "tiny_cuda_compile": {
+    "torch": "2.8.0+cu128",
+    "cuda": "12.8",
+    "device": "cuda",
+    "synthetic": true,
+    "results": {
+      "transformer": {
+        "loss": 1.8661309480667114,
+        "fullgraph_compile": true,
+        "parameters": 280242,
+        "seconds": 11.003346697427332,
+        "peak_allocated_mb": 70.46826171875
+      },
+      "rtransformer": {
+        "loss": 2.161139726638794,
+        "fullgraph_compile": true,
+        "parameters": 280246,
+        "seconds": 7.357214001938701,
+        "peak_allocated_mb": 70.47412109375
+      },
+      "tas": {
+        "loss": 2.2595067024230957,
+        "fullgraph_compile": true,
+        "parameters": 355507,
+        "seconds": 27.851898478344083,
+        "peak_allocated_mb": 118.24658203125
+      }
+    }
+  },
+  "prepared_profile": {
+    "batches_per_gpu": [
+      32,
+      16,
+      8,
+      4
+    ],
+    "lrs": [
+      0.0002,
+      4e-05,
+      5.656854249e-05,
+      4e-05
+    ],
+    "updates": [
+      24300,
+      21700,
+      3750,
+      7500
+    ],
+    "stage3_and_stage4_videos_each": 240000
+  }
+}

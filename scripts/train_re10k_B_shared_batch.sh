@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Verified common per-GPU batches for serial Transformer/RTransformer/TaS B.
-# See experiments/re10k_B_shared_batch_20260930.md for capacity and LR limits.
+# See experiments/rtransformer_checkpoint_memory_20260930.md for the corrected profile.
 set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
@@ -14,12 +14,12 @@ export NNODES=1 NPROC_PER_NODE=8 NODE_RANK=0
 export MODEL=B BACKBONE="${BACKBONE:-transformer}"
 case "$BACKBONE" in transformer|rtransformer|tas) ;; *) echo "Unknown backbone: $BACKBONE" >&2; exit 2 ;; esac
 export TRANSFORMER_EXECUTION=serial DF_CHUNK_SIZE=4
-export NUM_MEMORY_TOKENS=256 MEMORY_WINDOW_FRAMES=4
+export NUM_MEMORY_TOKENS=256 MEMORY_WINDOW_FRAMES=0
 export STAGE1_LATENT_FRAMES=8 STAGE2_LATENT_FRAMES=16 STAGE3_LATENT_FRAMES=32 STAGE4_LATENT_FRAMES=64
-export STAGE1_BATCH_SIZE=32 STAGE2_BATCH_SIZE=16 STAGE3_BATCH_SIZE=8 STAGE4_BATCH_SIZE=2
-export STAGE1_LR=2e-4 STAGE2_LR=4e-5 STAGE3_LR=5.656854249e-5 STAGE4_LR=2.828427125e-5
+export STAGE1_BATCH_SIZE=32 STAGE2_BATCH_SIZE=16 STAGE3_BATCH_SIZE=8 STAGE4_BATCH_SIZE=4
+export STAGE1_LR=2e-4 STAGE2_LR=4e-5 STAGE3_LR=5.656854249e-5 STAGE4_LR=4e-5
 # Preserve video exposure: epochs for stages1/2; 240,000 videos each for3/4.
-export STAGE1_EPOCHS=100 STAGE2_EPOCHS=50 STAGE3_MAX_TRAIN_STEPS=3750 STAGE4_MAX_TRAIN_STEPS=15000
+export STAGE1_EPOCHS=100 STAGE2_EPOCHS=50 STAGE3_MAX_TRAIN_STEPS=3750 STAGE4_MAX_TRAIN_STEPS=7500
 export SEED="${SEED:-42}"
 export RUN_NAME="${RUN_NAME:-re10k_B_${BACKBONE}_serial_c4_sharedbatch_s${SEED}_$(date -u +%Y%m%dT%H%M%SZ)}"
 export OUTPUT_DIR="${OUTPUT_DIR:-/mnt/localssd/experiments/yibo/miniworld/${RUN_NAME}}"

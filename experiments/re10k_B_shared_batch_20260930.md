@@ -1,5 +1,14 @@
 # Common larger batches for the three serial B backbones
 
+Historical initial profile at commit9710f49. Its TaS was an unintended
+memory-plus-history-KV hybrid, not the user's intended bank-only architecture.
+Those TaS measurements are retained for the audit and are superseded by the
+corrected bank-only probe. The subsequent
+[RTransformer checkpoint-memory fix](rtransformer_checkpoint_memory_20260930.md)
+removes the stage4 limitation reported here; the current launcher uses
+stage4 batch4 / LR4e-5 /7,500 updates. This record and its raw measurements are
+retained as evidence of the pre-fix implementation, not the current recipe.
+
 Prepared on 2026-09-30 for RE10K, one node with 8 H100 80GB GPUs. This is a
 capacity-checked starting configuration for Transformer, RTransformer and TaS,
 not a completed training run or a convergence/throughput result.
@@ -71,6 +80,10 @@ backbones' four-stage launcher arguments were checked using a stub uv command,
 without starting training or W&B. No model kernel changed in this task.
 
 ## Launch the prepared profile
+
+The instructions below describe the initial prepared profile. The current
+launcher follows the corrected profile linked above; use that record for a new
+experiment. No real training run was launched with this initial profile.
 
 Use [scripts/train_re10k_B_shared_batch.sh](../scripts/train_re10k_B_shared_batch.sh).
 It pins the table above and requires eight explicitly selected GPUs. Check
